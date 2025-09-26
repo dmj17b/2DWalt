@@ -340,10 +340,9 @@ class GenModel:
                 )
     
 
-    def compile(self):
-        self.model = mujoco.MjModel(self.spec)
-        self.data = mujoco.MjData(self.model)
-        return self.model, self.data
+    def compile_mj_model(self):
+        self.model = self.spec.compile()
+        return self.model
     
     def compile_to_xml(self, filename):
         self.spec.compile()
