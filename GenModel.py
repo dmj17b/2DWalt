@@ -270,7 +270,7 @@ class GenModel:
             motor_params['wheel_kp'],
         )
 
-
+    # Helper function to add position actuator 
     def add_position_actuator(self, joint_name, kp, kd):
         act = self.spec.add_actuator(
             name = joint_name + '_act',
@@ -285,6 +285,7 @@ class GenModel:
         act.biasprm[0:3] = [0.0, -kp, -kd]
         return act
         
+    # Helper function to add velocity actuator
     def add_velocity_actuator(self, joint_name, kv):
         act = self.spec.add_actuator(
             name = joint_name + '_act',
