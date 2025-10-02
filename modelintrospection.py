@@ -28,6 +28,7 @@ with mujoco.viewer.launch_passive(m,d) as viewer:
         d.ctrl[1] = 1.5
         d.ctrl[4] = -0.5
         d.ctrl[5] = 1.5
+        print(d.qpos)
 
         # Pick up changes to the physics state, apply perturbations, update options from GUI.
         viewer.sync()

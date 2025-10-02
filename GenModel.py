@@ -65,13 +65,14 @@ class GenModel:
         # Create planar joints for 2D movement
         torso_body.add_joint(
             type = mujoco.mjtJoint.mjJNT_SLIDE,
-            name = 'z_slide'
-        )
-        torso_body.add_joint(
-            type = mujoco.mjtJoint.mjJNT_SLIDE,
             axis = [1, 0, 0],
             name = 'x_slide'
         )
+        torso_body.add_joint(
+            type = mujoco.mjtJoint.mjJNT_SLIDE,
+            name = 'z_slide'
+        )
+
         torso_body.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
             axis = [0, 1, 0],
