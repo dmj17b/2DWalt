@@ -19,7 +19,7 @@ def default_config() -> config_dict.ConfigDict:
     return config_dict.create(
         ctrl_dt = 0.01,
         sim_dt = 0.01,
-        episode_length = 1000,
+        episode_length = 3000,
         action_repeat = 1,
         impl = 'jax',
         reward_config = config_dict.create(

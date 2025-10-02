@@ -50,7 +50,7 @@ class GenModel:
         # Create the torso body 
         torso_body = self.spec.worldbody.add_body(
             name = 'torso',
-            pos = [0, 0, 1],
+            pos = [0, 0, 0.3],
             quat = [1, 0, 0, 0],
         )
         torso_body.add_geom(
