@@ -41,11 +41,13 @@ class EnvWalt2D(mjx_env.MjxEnv):
         self.config = config  # Store the configuration
 
         self._mj_model = model_spec.compile()  # Compile the model and store it
-        self.mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # Convert to JAX-compatible model
+        self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # Convert to JAX-compatible model
     
     def reset(self, rng: jax.Array) -> mjx_env.State:
         """Resets the environment to an initial state."""
         rng, rng1 = jax.random.split(rng)
+        qpos = self._reset_model_pos()  # Reset the model's position
+        qvel = jp.zeros(self.mjx_model.nv)  # Initialize velocities to zero
 
         data = mjx_env.init(
             self.mjx_model,
@@ -58,6 +60,22 @@ class EnvWalt2D(mjx_env.MjxEnv):
         qpos = jp.zeros(self.mjx_model.nq)
         return qpos        
     
+    @property
+    def xml_path(self) -> str:
+        return "2DWalt.xml"
+    
+    @property
+    def action_size(self) -> int:
+        return self.mjx_model.nu
+    
+    @property
+    def mj_model(self) -> mujoco.MjModel:
+        return self._mj_model
+    
+    @property
+    def mjx_model(self) -> mjx.Model:
+        return self._mjx_model
+
 def main():
     env = EnvWalt2D()
     env.reset(rng=jax.random.PRNGKey(0))
