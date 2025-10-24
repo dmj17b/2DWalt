@@ -24,8 +24,8 @@ def default_config() -> config_dict.ConfigDict:
         impl = 'jax',
         reward_config = config_dict.create(
             fwd_vel_weight = 1.0,
-            body_pitch_weight = -0.5,
-            low_torques_weight = -0.005,
+            body_pitch_weight = -1.0,
+            low_torques_weight = -0.0005,
             alive = 0.0,
             termination = -100.0,
         ),
@@ -49,6 +49,9 @@ class EnvWalt2D(mjx_env.MjxEnv):
 
         self._mj_model = model_spec.spec.compile()  # Compile the model and store it
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # Convert to JAX-compatible model
+
+        self.action_scale = 0.5  # Scale for actions
+        self.default_ctrl = jp.zeros(self.mjx_model.nu)  # Default control inputs
     
 
     # Resets the environment to an initial state.
@@ -68,6 +71,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
             "reward/body_pitch": jp.zeros(()),
             "reward/low_torques": jp.zeros(()),
             "reward/fwd_vel": jp.zeros(()),
+            "train/episode_reward": jp.zeros(()),
+            "train/episode_reward_err": jp.zeros(()),
         }
 
         reward, done = jp.zeros(2)  # Initialize reward and done flag
@@ -82,10 +87,13 @@ class EnvWalt2D(mjx_env.MjxEnv):
     # Defines a forward step in the environment given the current state and action.
     # Also computes the resulting observation, reward, done flag, and metrics.
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
+
+        motor_targets = self.default_ctrl + self.action_scale * action
+
         data = mjx_env.step(
             self.mjx_model,
             state.data,
-            action,
+            motor_targets,
             self.n_substeps,
         )
         
@@ -93,7 +101,10 @@ class EnvWalt2D(mjx_env.MjxEnv):
 
         reward = self._get_reward(data, action, state.info, state.metrics)  # Compute the reward
 
-        done = jp.array(0.0)  # The episode is never done in this environment
+        # Check if pitch exceeds 120deg (2.094 rad) to terminate the episode
+        pitch_exceeded = jp.abs(data.qpos[2]) > 2.094
+        done = jp.where(pitch_exceeded, 1.0, 0.0)
+        reward = jp.where(pitch_exceeded, reward + self._config.reward_config.termination, reward)
 
         
         return mjx_env.State(data, obs, reward, done, state.metrics, state.info)
@@ -110,15 +121,29 @@ class EnvWalt2D(mjx_env.MjxEnv):
         body_pitch = data.qpos[2]  # Get the pitch of the body
         body_pitch_reward = jp.pow(body_pitch, 2)*reward_weights.body_pitch_weight  # Reward low pitch angles
         joint_torques = data.qfrc_actuator  # Get the actuator forces
-        low_torques_reward = jp.sum(joint_torques)*reward_weights.low_torques_weight  # Reward low torque usage
+        low_torques_reward = jp.sum(jp.square(joint_torques))*reward_weights.low_torques_weight  # Reward low torque usage
         fwd_vel = data.qvel[0]  # Get the forward velocity
         fwd_vel_reward = fwd_vel*reward_weights.fwd_vel_weight  # Reward forward velocity
 
+
         metrics["reward/body_pitch"] = body_pitch_reward
         metrics["reward/low_torques"] = low_torques_reward
-        metrics["reward/fwd_vel"] = fwd_vel_reward
+        metrics["reward/fwd_vel"] = self._reward_tracking_velocity(jp.array([fwd_vel]))[0]
+        metrics["train/episode_reward"] = body_pitch_reward + low_torques_reward + fwd_vel_reward
+        metrics["train/episode_reward_err"] = 0.0
 
         return body_pitch_reward + low_torques_reward + fwd_vel_reward
+    
+
+    def _reward_tracking_velocity(
+        self,
+        body_velocity: jax.Array,
+        sigma: float = 0.25,
+    ) -> jax.Array:
+        target_velocity = jp.array([2.0])
+        error  = jp.square(body_velocity - target_velocity)
+        return jp.exp(-error / sigma)
+
 
     def _reset_model_pos(self) -> jax.Array:
         """Resets the model to an initial state."""

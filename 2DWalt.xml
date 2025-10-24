@@ -34,9 +34,9 @@
     <light pos="8 4 15" dir="0 0 -1" diffuse="0.1 0.1 0.1" specular="0 0 0"/>
     <light pos="8 6 15" dir="0 0 -1" diffuse="0.1 0.1 0.1" specular="0 0 0"/>
     <light pos="8 8 15" dir="0 0 -1" diffuse="0.1 0.1 0.1" specular="0 0 0"/>
-    <body name="torso" pos="0 0 1">
-      <joint name="z_slide" pos="0 0 0" axis="0 0 1" type="slide"/>
+    <body name="torso" pos="0 0 0.3">
       <joint name="x_slide" pos="0 0 0" axis="1 0 0" type="slide"/>
+      <joint name="z_slide" pos="0 0 0" axis="0 0 1" type="slide"/>
       <joint name="y_rot" pos="0 0 0" axis="0 1 0"/>
       <geom size="0.05 0.25" quat="0.707107 0 0.707107 0" type="capsule" contype="2" mass="5" rgba="0.694118 0.65098 0.533333 1"/>
       <body name="front_thigh" pos="0.35 0 0" quat="0.707107 0 0.707107 0">
