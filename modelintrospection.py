@@ -12,6 +12,7 @@ import numpy as np  # Import numpy for numerical operations.
 model_spec = GenModel.GenModel()  # Create an instance of the model generator
 model_spec.add_scene()  # Add the scene to the model
 m = model_spec.compile_mj_model()  # Compile the model and retrieve it
+m.vis.quality.offsamples = 0
 m.opt.enableflags
 d = mujoco.MjData(m)  # Create a data object for the model
 
@@ -22,12 +23,18 @@ with mujoco.viewer.launch_passive(m,d) as viewer:
 
         # Step the simulation forward
         mujoco.mj_step(m, d)
+        
+        whel_vel = 5.0
 
         # Test control inputs:
         d.ctrl[0] = 0.5
         d.ctrl[1] = 1.5
+        d.ctrl[2] = whel_vel
+        d.ctrl[3] = whel_vel
         d.ctrl[4] = -0.5
         d.ctrl[5] = 1.5
+        d.ctrl[6] = whel_vel
+        d.ctrl[7] = whel_vel
         # print(d.qpos)
 
         # Pick up changes to the physics state, apply perturbations, update options from GUI.
