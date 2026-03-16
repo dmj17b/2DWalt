@@ -18,9 +18,9 @@ def default_config() -> config_dict.ConfigDict:
     """Returns the default configuration for the EnvWalt2D environment."""
     return config_dict.create(
         ctrl_dt = 0.01,
-        sim_dt = 0.01,
+        sim_dt = 0.002,
         episode_length = 3000,
-        action_repeat = 1,
+        action_repeat = 5,
         impl = 'jax',
         reward_config = config_dict.create(
             fwd_vel_weight = 1.0,
@@ -52,6 +52,32 @@ class EnvWalt2D(mjx_env.MjxEnv):
 
         self.action_scale = 0.5  # Scale for actions
         self.default_ctrl = jp.zeros(self.mjx_model.nu)  # Default control inputs
+
+        # Define joint indices:
+        self.x_slide_jid = self._mj_model.joint("x_slide").id
+        self.z_slide_jid = self._mj_model.joint("z_slide").id
+        self.y_rot_jid = self._mj_model.joint("y_rot").id
+        self.f_hip_jid = self._mj_model.joint("front_hip").id
+        self.f_knee_jid = self._mj_model.joint("front_knee").id
+        self.f_wheel1_jid = self._mj_model.joint("front_wheel1").id
+        self.f_wheel2_jid = self._mj_model.joint("front_wheel2").id
+        self.r_hip_jid = self._mj_model.joint("rear_hip").id
+        self.r_knee_jid = self._mj_model.joint("rear_knee").id
+        self.r_wheel1_jid = self._mj_model.joint("rear_wheel1").id
+        self.r_wheel2_jid = self._mj_model.joint("rear_wheel2").id
+
+        # Define qpos addresses for easier access:
+        self.x_slide_qpos_addr = self._mj_model.jnt_qposadr[self.x_slide_jid]
+        self.z_slide_qpos_addr = self._mj_model.jnt_qposadr[self.z_slide_jid]
+        self.y_rot_qpos_addr = self._mj_model.jnt_qposadr[self.y_rot_jid]
+        self.f_hip_qpos_addr = self._mj_model.jnt_qposadr[self.f_hip_jid]
+        self.f_knee_qpos_addr = self._mj_model.jnt_qposadr[self.f_knee_jid]
+        self.f_wheel1_qpos_addr = self._mj_model.jnt_qposadr[self.f_wheel1_jid]
+        self.f_wheel2_qpos_addr = self._mj_model.jnt_qposadr[self.f_wheel2_jid]
+        self.r_hip_qpos_addr = self._mj_model.jnt_qposadr[self.r_hip_jid]
+        self.r_knee_qpos_addr = self._mj_model.jnt_qposadr[self.r_knee_jid]
+        self.r_wheel1_qpos_addr = self._mj_model.jnt_qposadr[self.r_wheel1_jid]
+        self.r_wheel2_qpos_addr = self._mj_model.jnt_qposadr[self.r_wheel2_jid]
     
 
     # Resets the environment to an initial state.
@@ -61,7 +87,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
         qpos = self._reset_model_pos()  # Reset the model's position
         qvel = jp.zeros(self.mjx_model.nv)  # Initialize velocities to zero
 
-        data = mjx_env.init(
+        data = mjx_env.make_data(
             self.mjx_model,
             qpos=qpos,
             qvel=qvel,
@@ -88,7 +114,18 @@ class EnvWalt2D(mjx_env.MjxEnv):
     # Also computes the resulting observation, reward, done flag, and metrics.
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
 
-        motor_targets = self.default_ctrl + self.action_scale * action
+        f_hip_target = self.default_ctrl[self.f_hip_qpos_addr] + self.action_scale * action[0]
+        f_knee_target = state.data.qpos[self.f_knee_qpos_addr] + self.action_scale * action[1]
+        f_wheel1_target = self.default_ctrl[self.f_wheel1_qpos_addr] + self.action_scale * action[2]
+        f_wheel2_target = self.default_ctrl[self.f_wheel2_qpos_addr] + self.action_scale * action[3]
+        r_hip_target = self.default_ctrl[self.r_hip_qpos_addr] + self.action_scale * action[4]
+        r_knee_target = state.data.qpos[self.r_knee_qpos_addr] + self.action_scale * action[5]
+        r_wheel1_target = self.default_ctrl[self.r_wheel1_qpos_addr] + self.action_scale * action[6]
+        r_wheel2_target = self.default_ctrl[self.r_wheel2_qpos_addr] + self.action_scale * action[7]
+        motor_targets = jp.array([
+            f_hip_target, f_knee_target, f_wheel1_target, f_wheel2_target,
+            r_hip_target, r_knee_target, r_wheel1_target, r_wheel2_target
+        ])
 
         data = mjx_env.step(
             self.mjx_model,
@@ -118,8 +155,12 @@ class EnvWalt2D(mjx_env.MjxEnv):
     ) -> jax.Array:
         del info
         reward_weights = self._config.reward_config
+
+        # Reward for maintaining low body pitch angles
         body_pitch = data.qpos[2]  # Get the pitch of the body
         body_pitch_reward = jp.pow(body_pitch, 2)*reward_weights.body_pitch_weight  # Reward low pitch angles
+
+        # Penalize large torques
         joint_torques = data.qfrc_actuator  # Get the actuator forces
         low_torques_reward = jp.sum(jp.square(joint_torques))*reward_weights.low_torques_weight  # Reward low torque usage
         fwd_vel = data.qvel[0]  # Get the forward velocity
@@ -130,7 +171,6 @@ class EnvWalt2D(mjx_env.MjxEnv):
         metrics["reward/low_torques"] = low_torques_reward
         metrics["reward/fwd_vel"] = self._reward_tracking_velocity(jp.array([fwd_vel]))[0]
         metrics["train/episode_reward"] = body_pitch_reward + low_torques_reward + fwd_vel_reward
-        metrics["train/episode_reward_err"] = 0.0
 
         return body_pitch_reward + low_torques_reward + fwd_vel_reward
     

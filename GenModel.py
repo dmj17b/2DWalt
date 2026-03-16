@@ -14,7 +14,7 @@ class GenModel:
             'torso_len': 0.5,
             'thigh_len': 0.2,
             'shin_len': 0.3,
-            'wheel_radius': 0.1,
+            'wheel_radius': 0.12,
             'segment_density': 10,  # kg/m^3
         }
 
@@ -158,7 +158,7 @@ class GenModel:
         )
 
         ''' Assembling the rear leg '''
-        # Create back thigh
+        # Create rear thigh
         rear_thigh = torso_body.add_body(
             name = 'rear_thigh',
             pos = [-model_params['torso_len']/2 - model_params['thigh_len']/2, 0, 0],
@@ -173,7 +173,7 @@ class GenModel:
         rear_thigh.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
             axis = [0, 1, 0],
-            name = 'back_hip',
+            name = 'rear_hip',
             pos = [0, 0, model_params['thigh_len']/2],
             armature = motor_params['hip_armature'],
         )
@@ -192,7 +192,7 @@ class GenModel:
         rear_shin.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
             axis = [0, 1, 0],
-            name = 'back_knee',
+            name = 'rear_knee',
             pos = [0, 0, 0],
             armature = motor_params['knee_armature'],
         )
@@ -241,9 +241,10 @@ class GenModel:
             motor_params['hip_kp'],
             motor_params['hip_kd'],
         )
-        front_knee_act = self.add_velocity_actuator(
+        front_knee_act = self.add_position_actuator(
             'front_knee',
             motor_params['knee_kp'],
+            motor_params['knee_kd'],
         )
         front_wheel1_act = self.add_velocity_actuator(
             'front_wheel1',
@@ -253,20 +254,21 @@ class GenModel:
             'front_wheel2',
             motor_params['wheel_kp'],
         )
-        back_hip_act = self.add_position_actuator(
-            'back_hip',
+        rear_hip_act = self.add_position_actuator(
+            'rear_hip',
             motor_params['hip_kp'],
             motor_params['hip_kd'],
         )
-        back_knee_act = self.add_velocity_actuator(
-            'back_knee',
+        rear_knee_act = self.add_position_actuator(
+            'rear_knee',
             motor_params['knee_kp'],
+            motor_params['knee_kd'],
         )
-        back_wheel1_act = self.add_velocity_actuator(
+        rear_wheel1_act = self.add_velocity_actuator(
             'rear_wheel1',
             motor_params['wheel_kp'],
         )
-        back_wheel2_act = self.add_velocity_actuator(
+        rear_wheel2_act = self.add_velocity_actuator(
             'rear_wheel2',
             motor_params['wheel_kp'],
         )
