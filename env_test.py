@@ -1,11 +1,14 @@
+import os
+# os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
 import EnvWalt2D
 import mujoco
 import mujoco.viewer
-import jax
-import jax.numpy as jp
 from typing import Optional, Dict, Union
 from mujoco import mjx
 import time
+import jax
+import jax.numpy as jp
+print(jax.devices())
 
 def main():
     # Initialize the environment
@@ -40,6 +43,9 @@ def main():
 
             # Update the MJX state with any changes from viewer interactions (e.g., user dragging the model)
             state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
+
+            # Print body angle for debugging
+            body_pitch_obs = state.obs[2]
 
             # Sample a random action (for testing purposes) every 5 sim steps:
             if n_steps % 5 == 0:
