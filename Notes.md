@@ -1,8 +1,6 @@
 # TODO:
-- Wrap knee angles between 0 and 2*pi (relative to hip?)
 - sin/cos of body angle in observation
 - Implement exponential kernel
-- Separate config file for reward/ppo params
 - Add velocity tracking term that changes with each reset
 
 # Questions for Jacob:

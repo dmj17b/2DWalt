@@ -11,6 +11,7 @@ import numpy as np  # Import numpy (not used in this snippet).
 from mujoco_playground._src import mjx_env  # Import custom environment base class.
 from mujoco_playground._src import reward  # Import reward utilities (not used in this snippet).
 from mujoco_playground._src.dm_control_suite import common  # Import common utilities for dm_control_suite.
+from env_config import (EnvConfig, RewardConfig)  # Import environment and reward configuration dataclasses.
 
 import GenModel
 
@@ -19,16 +20,9 @@ def default_config() -> config_dict.ConfigDict:
     return config_dict.create(
         ctrl_dt = 0.01,
         sim_dt = 0.002,
-        episode_length = 3000,
-        action_repeat = 5,
+        episode_length = 1000,
+        action_repeat = 1,
         impl = 'jax',
-        reward_config = config_dict.create(
-            fwd_vel_weight = 1.0,
-            body_pitch_weight = -1.0,
-            low_torques_weight = -0.0005,
-            alive = 0.0,
-            termination = -100.0,
-        ),
     )
 
 
@@ -39,18 +33,23 @@ class EnvWalt2D(mjx_env.MjxEnv):
             self,
             config: config_dict.ConfigDict = default_config(),
             config_overrides: Optional[Dict[str, Union[str,int,list[any]]]] = None,
+            reward_config: RewardConfig = RewardConfig(),
     ):
         super().__init__(config, config_overrides = config_overrides) # Initialize the base class with config
 
         model_spec = GenModel.GenModel()  # Create an instance of the model generator
         model_spec.add_scene()  # Add the scene to the model
         
+        # Load configurations
         self.config = config  # Store the configuration
+        self.reward_config = reward_config  # Store the reward configuration
+
+
 
         self._mj_model = model_spec.spec.compile()  # Compile the model and store it
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # Convert to JAX-compatible model
 
-        self.action_scale = 0.5  # Scale for actions
+        self.action_scale = 2.0  # Scale for actions
         self.default_ctrl = jp.zeros(self.mjx_model.nu)  # Default control inputs
 
         # Define joint indices:
@@ -92,7 +91,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
     # Resets the environment to an initial state.
     def reset(self, rng: jax.Array) -> mjx_env.State:
         """Resets the environment to an initial state."""
-        rng, rng1 = jax.random.split(rng)
+        rng, command_rng, = jax.random.split(rng)
         qpos = self._reset_model_pos()  # Reset the model's position
         qvel = jp.zeros(self.mjx_model.nv)  # Initialize velocities to zero
 
@@ -105,14 +104,20 @@ class EnvWalt2D(mjx_env.MjxEnv):
         metrics = {
             "reward/body_pitch": jp.zeros(()),
             "reward/low_torques": jp.zeros(()),
-            "reward/fwd_vel": jp.zeros(()),
+            "reward/vel_tracking": jp.zeros(()),
             "train/episode_reward": jp.zeros(()),
             "train/episode_reward_err": jp.zeros(()),
         }
 
-        reward, done = jp.zeros(2)  # Initialize reward and done flag
+        command = self.sample_command(command_rng)  # Sample an initial command for the environment
 
-        info = {"rng": rng}  # Store the RNG state in the info dictionary
+        reward = jp.zeros(())  # Scalar reward
+        done = jp.zeros(())  # Scalar done flag
+
+        info = {
+            "rng": rng,
+            "command": command,
+            } 
 
         obs = self._get_obs(data, info)  # Get the initial observation
 
@@ -161,29 +166,29 @@ class EnvWalt2D(mjx_env.MjxEnv):
                     info: Dict[str, Any],
                     metrics: dict[str, Any],
     ) -> jax.Array:
-        del info
-        reward_weights = self._config.reward_config
-
         # Reward for maintaining low body pitch angles
         body_pitch = data.qpos[2]  # Get the pitch of the body
-        body_pitch_reward = jp.pow(body_pitch, 2)*reward_weights.body_pitch_weight  # Reward low pitch angles
-
+        # body_pitch_reward = self.tracking_reward(0.0, body_pitch)*self.reward_config.body_pitch  # Reward for keeping body pitch close to 0
+        body_pitch_reward = -self.reward_config.body_pitch*jp.square(body_pitch)  # Quadratic penalty for body pitch angle, scaled by reward_config 
         # Penalize large torques
         joint_torques = data.qfrc_actuator  # Get the actuator forces
-        low_torques_reward = jp.sum(jp.square(joint_torques))*reward_weights.low_torques_weight  # Reward low torque usage
+        low_torques_reward = jp.sum(jp.square(joint_torques))*self.reward_config.low_torques  # Reward low torque usage
         fwd_vel = data.qvel[0]  # Get the forward velocity
-        fwd_vel_reward = self.tracking_reward(jp.array([2.0]), fwd_vel)*reward_weights.fwd_vel_weight  # Reward forward velocity
+        vel_tracking_reward = self.tracking_reward(info["command"], fwd_vel, sigma=0.75)*self.reward_config.vel_tracking  # Reward forward velocity
 
 
         metrics["reward/body_pitch"] = body_pitch_reward
         metrics["reward/low_torques"] = low_torques_reward
-        metrics["reward/fwd_vel"] = self.tracking_reward(jp.array([2.0]), fwd_vel)
-        metrics["train/episode_reward"] = body_pitch_reward + low_torques_reward + fwd_vel_reward
+        metrics["reward/vel_tracking"] = vel_tracking_reward
+        metrics["train/episode_reward"] = body_pitch_reward + low_torques_reward + vel_tracking_reward
 
-        return body_pitch_reward + low_torques_reward + fwd_vel_reward
-    
+        return body_pitch_reward + low_torques_reward + vel_tracking_reward
 
+    # Helper function to compute a tracking reward based on the error between desired and actual values.
+    # Uses exponential kernel to convert error into a reward, with a scaling factor sigma.
     def tracking_reward(self, desired, actual, sigma=0.25):
+        desired = jp.array(desired)
+        actual = jp.array(actual)
         error = jp.square(desired - actual)
         return jp.exp(-error / sigma)
 
@@ -195,9 +200,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
 
     """Returns the observation from the environment as a JAX array."""
     def _get_obs(self, data: mjx.Data, info: dict[str, Any]) -> jax.Array:
-        del info # Unused
-        body_x_vel = jp.array([data.qvel[self.x_slide_qpos_addr]])  # Get the velocity of the body
-        body_z_vel = jp.array([data.qvel[self.z_slide_qpos_addr]])  # Get the vertical velocity of the body
+
+        vel_command = jp.array([info["command"]])  # Get the velocity command from the info dictionary
         body_pitch = jp.array([data.qpos[self.y_rot_qpos_addr]]) # Get the pitch of the body
         f_hip_pos = jp.array([data.qpos[3]])  # Get the position of the front hip
         f_knee_pos = jp.array([data.qpos[4]])%(2*jp.pi)  # Get the position of the front knee (modulo 2pi to handle wrapping)
@@ -210,11 +214,17 @@ class EnvWalt2D(mjx_env.MjxEnv):
         r_wheel1_vel = jp.array([data.qvel[9]])  # Get the velocity of the rear wheel 1
         r_wheel2_vel = jp.array([data.qvel[10]])  # Get the velocity of the rear wheel 2
         obs = jp.concatenate([
-            body_x_vel, body_z_vel, body_pitch,
+            vel_command,
+            body_pitch,
             f_hip_pos, f_knee_pos, f_knee_vel, r_hip_pos, r_knee_pos, r_knee_vel,
             f_wheel1_vel, f_wheel2_vel, r_wheel1_vel, r_wheel2_vel
         ])
         return obs
+    
+    def sample_command(self, rng: jax.Array) -> jax.Array:
+        rng, command_rng = jax.random.split(rng)
+        command = jax.random.uniform(command_rng, minval=-3.0, maxval=3.0)
+        return command
 
     @property
     def xml_path(self) -> str:

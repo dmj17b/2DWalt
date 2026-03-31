@@ -1,5 +1,5 @@
 import os
-# os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
+os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
 import EnvWalt2D
 import mujoco
 import mujoco.viewer
@@ -8,6 +8,11 @@ from mujoco import mjx
 import time
 import jax
 import jax.numpy as jp
+from brax.io import model
+from brax.training.agents.ppo import networks as ppo_networks
+from brax.training.agents.ppo import networks_vision as ppo_networks_vision
+from brax.training.agents.ppo import train as ppo
+from brax.training.acme import running_statistics
 print(jax.devices())
 
 def main():
@@ -30,9 +35,23 @@ def main():
     # Pull the initial MJX state into standard CPU mj_data
     mjx.get_data_into(mj_data, env.mj_model, state.data)
     dt = env._mj_model.opt.timestep  # Get the simulation timestep
-    n_steps = 0
+    
+    # Load the PPO model:
+    model_path = "walter_ppo2"  # Path to the saved PPO model parameters
+    params = model.load_params(model_path)
+    inference_fn = ppo_networks.make_inference_fn(
+        ppo_networks.make_ppo_networks(
+            observation_size=env.observation_size,
+            action_size=env.action_size,
+            preprocess_observations_fn=running_statistics.normalize,
+        )
+    )(params, deterministic=True)
+
+    jit_inference_fn = jax.jit(inference_fn)
+
 
     # Launch standard MuJoCo viewer
+    n_steps = 0
     with mujoco.viewer.launch_passive(env.mj_model, mj_data) as viewer:
         while viewer.is_running():
             # Keep track of step time
@@ -46,19 +65,25 @@ def main():
             state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
 
             # Print rewards for debugging
-            print(f"Step: {n_steps}, Total Reward: {state.reward}")
-            print(f"Body Pitch Reward: {state.metrics['reward/body_pitch']:.3f}")
-            print(f"Low Torques Reward: {state.metrics['reward/low_torques']:.6f}")
-            print(f"Velocity Tracking Reward: {state.metrics['reward/vel_tracking']:.3f}\n")
+            # print(f"Step: {n_steps}, Total Reward: {state.reward}")
+            # print(f"Body Pitch Reward: {state.metrics['reward/body_pitch']:.3f}")
+            # print(f"Low Torques Reward: {state.metrics['reward/low_torques']:.6f}")
+            # print(f"Velocity Tracking Reward: {state.metrics['reward/vel_tracking']:.3f}\n")
 
-            # Call inference function to get action from the PPO policy every 5 sim steps:
+            # Sample a random action (for testing purposes) every 5 sim steps:
             if n_steps % 5 == 0:
-                key, subkey = jax.random.split(key)
-                action = jax.random.uniform(subkey, shape=(env.mjx_model.nu,), minval=-1.0, maxval=1.0)
+                action = jit_inference_fn(state.obs, key)  # Get action from the PPO policy
 
 
-            state = step_fn(state, action)  # Step the environment
+            state = step_fn(state, action[0])  # Step the environment
             n_steps += 1
+
+            if n_steps > 500:
+                print("Episode length reached. Resetting environment.")
+                key, subkey = jax.random.split(key)
+                state = reset_fn(subkey)
+                print(f"New Velocity Command: {state.info['command']:.3f}\n")
+                n_steps = 0
 
             elapsed = time.time()-start_time
             if elapsed < dt:

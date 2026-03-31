@@ -16,11 +16,11 @@ ppo_params = {
     'action_repeat': 5,
     'batch_size': 1024,
     'discounting': 0.995,
-    'entropy_cost': 0.01,
+    'entropy_cost': 0.001,
     'episode_length': 1000,
     'learning_rate': 1e-4,
     'num_envs': 4096,
-    'num_evals': 100,  
+    'num_evals': 20,  
     'num_minibatches': 32,
     'num_updates_per_batch': 16,
     'num_timesteps': 1_000_000,  
@@ -46,7 +46,7 @@ def _to_float(value):
 def progress(num_steps, metrics):
     print(f"Steps: {num_steps}")
     print(f"Body pitch reward: {metrics['eval/episode_reward/body_pitch']:.4f}")
-    print(f"Forward velocity reward: {metrics['eval/episode_reward/fwd_vel']:.4f}")
+    print(f"Velocity tracking reward: {metrics['eval/episode_reward/vel_tracking']:.4f}")
     print(f"Torque Penalty: {metrics['eval/episode_reward/low_torques']:.6f}")
     print(f"Total reward: {metrics['eval/episode_reward']:.4f}")
 
@@ -63,7 +63,7 @@ if "network_factory" in ppo_training_params:
     del ppo_training_params["network_factory"]
     network_factory = functools.partial(
         ppo_networks.make_ppo_networks,
-        **ppo_params.network_factory
+        **ppo_params.network_factory,
     )
 
 train_fn = functools.partial(
@@ -90,5 +90,5 @@ run.finish()  # Finish the WandB run after training is complete
 print(f"\nFinal metrics: {metrics}")
 
 # Save the trained model parameters using Brax's model saving utility
-model_path = "walter_ppo"
+model_path = "walter_ppo2"
 model.save_params(model_path, params)
