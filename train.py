@@ -22,11 +22,11 @@ ppo_params = {
     'num_envs': 4096,
     'num_evals': 20,  
     'num_minibatches': 32,
-    'num_updates_per_batch': 16,
-    'num_timesteps': 1_000_000,  
+    'num_updates_per_batch': 8,
+    'num_timesteps': 100_000_000,  
     'normalize_observations': True,
     'reward_scaling': 1.0,
-    'unroll_length': 30,
+    'unroll_length': 50,
     }
 
 #---------- WandB logging setup ------------#
@@ -48,7 +48,9 @@ def progress(num_steps, metrics):
     print(f"Body pitch reward: {metrics['eval/episode_reward/body_pitch']:.4f}")
     print(f"Velocity tracking reward: {metrics['eval/episode_reward/vel_tracking']:.4f}")
     print(f"Torque Penalty: {metrics['eval/episode_reward/low_torques']:.6f}")
-    print(f"Total reward: {metrics['eval/episode_reward']:.4f}")
+    print(f"Body z-velocity penalty: {metrics['eval/episode_reward/body_z_vel']:.4f}")
+    print(f"Body pitch velocity penalty: {metrics['eval/episode_reward/body_pitch_vel']:.4f}")
+    print(f"Total reward: {metrics['eval/episode_reward']:.4f}\n")
 
     wandb_metrics = {k: _to_float(v) for k, v in metrics.items()}
     wandb_metrics = {k: v for k, v in wandb_metrics.items() if v is not None}
@@ -90,5 +92,5 @@ run.finish()  # Finish the WandB run after training is complete
 print(f"\nFinal metrics: {metrics}")
 
 # Save the trained model parameters using Brax's model saving utility
-model_path = "walter_ppo2"
+model_path = "walter_ppo"
 model.save_params(model_path, params)

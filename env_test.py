@@ -1,5 +1,5 @@
 import os
-# os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
+os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
 import EnvWalt2D
 import mujoco
 import mujoco.viewer
@@ -46,15 +46,17 @@ def main():
             state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
 
             # Print rewards for debugging
-            print(f"Step: {n_steps}, Total Reward: {state.reward}")
-            print(f"Body Pitch Reward: {state.metrics['reward/body_pitch']:.3f}")
-            print(f"Low Torques Reward: {state.metrics['reward/low_torques']:.6f}")
-            print(f"Velocity Tracking Reward: {state.metrics['reward/vel_tracking']:.3f}\n")
-
+            # print(f"Step: {n_steps}, Total Reward: {state.reward}")
+            # print(f"Body Pitch Reward: {state.metrics['reward/body_pitch']:.3f}")
+            # print(f"Low Torques Reward: {state.metrics['reward/low_torques']:.6f}")
+            # print(f"Velocity Tracking Reward: {state.metrics['reward/vel_tracking']:.3f}\n")
+            # Print body vel:
+            print(f"Body x-velocity: {state.data.qvel[0]:.3f}")
             # Call inference function to get action from the PPO policy every 5 sim steps:
             if n_steps % 5 == 0:
                 key, subkey = jax.random.split(key)
-                action = jax.random.uniform(subkey, shape=(env.mjx_model.nu,), minval=-1.0, maxval=1.0)
+                # action = jax.random.uniform(subkey, shape=(env.mjx_model.nu,), minval=-1.0, maxval=1.0)
+                action = jp.array([0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0])
 
 
             state = step_fn(state, action)  # Step the environment

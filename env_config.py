@@ -6,8 +6,10 @@ import flax.struct
 class RewardConfig:
     vel_tracking = 100.0
     body_pitch = 50.0
+    body_pitch_vel = 1.0
     low_torques = -0.001
-    body_height = 0.0
+    body_z_vel = 10.0
+    height_penalty = 1.0
     alive = 0.0
     termination = -100.0
 

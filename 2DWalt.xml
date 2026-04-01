@@ -39,7 +39,7 @@
       <joint name="z_slide" pos="0 0 0" axis="0 0 1" type="slide"/>
       <joint name="y_rot" pos="0 0 0" axis="0 1 0"/>
       <geom size="0.05 0.25" quat="0.707107 0 0.707107 0" type="capsule" contype="2" mass="5" rgba="0.694118 0.65098 0.533333 1"/>
-      <body name="front_thigh" pos="0.35 0 0" quat="0.707107 0 0.707107 0">
+      <body name="front_thigh" pos="0.35 0 0" quat="0 0 1 0">
         <joint name="front_hip" pos="0 0 -0.1" axis="0 1 0" armature="0.1"/>
         <geom size="0.05 0.1" type="capsule" contype="2"/>
         <body name="front_shin" pos="0 0 0.1" quat="0.707107 0 0.707107 0">
@@ -75,13 +75,13 @@
   </worldbody>
 
   <actuator>
-    <general name="front_hip_act" joint="front_hip" biastype="affine" gainprm="100" biasprm="0 -100 -5"/>
-    <general name="front_knee_act" joint="front_knee" biastype="affine" gainprm="100" biasprm="0 -100 -5"/>
-    <general name="front_wheel1_act" joint="front_wheel1" biastype="affine" gainprm="50" biasprm="0 0 -50"/>
-    <general name="front_wheel2_act" joint="front_wheel2" biastype="affine" gainprm="50" biasprm="0 0 -50"/>
-    <general name="rear_hip_act" joint="rear_hip" biastype="affine" gainprm="100" biasprm="0 -100 -5"/>
-    <general name="rear_knee_act" joint="rear_knee" biastype="affine" gainprm="100" biasprm="0 -100 -5"/>
-    <general name="rear_wheel1_act" joint="rear_wheel1" biastype="affine" gainprm="50" biasprm="0 0 -50"/>
-    <general name="rear_wheel2_act" joint="rear_wheel2" biastype="affine" gainprm="50" biasprm="0 0 -50"/>
+    <general name="front_hip_act" joint="front_hip" biastype="affine" gainprm="100" biasprm="0 -100 -25"/>
+    <general name="front_knee_act" joint="front_knee" biastype="affine" gainprm="100" biasprm="0 -100 -25"/>
+    <general name="front_wheel1_act" joint="front_wheel1" biastype="affine" gainprm="100" biasprm="0 0 -100"/>
+    <general name="front_wheel2_act" joint="front_wheel2" biastype="affine" gainprm="100" biasprm="0 0 -100"/>
+    <general name="rear_hip_act" joint="rear_hip" biastype="affine" gainprm="100" biasprm="0 -100 -25"/>
+    <general name="rear_knee_act" joint="rear_knee" biastype="affine" gainprm="100" biasprm="0 -100 -25"/>
+    <general name="rear_wheel1_act" joint="rear_wheel1" biastype="affine" gainprm="100" biasprm="0 0 -100"/>
+    <general name="rear_wheel2_act" joint="rear_wheel2" biastype="affine" gainprm="100" biasprm="0 0 -100"/>
   </actuator>
 </mujoco>

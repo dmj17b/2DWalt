@@ -11,7 +11,7 @@ class GenModel:
 
         model_params = {
             'segment_thickness': 0.05,
-            'torso_len': 0.5,
+            'torso_len': 0.6,
             'thigh_len': 0.2,
             'shin_len': 0.3,
             'wheel_radius': 0.12,
@@ -20,15 +20,15 @@ class GenModel:
 
         motor_params = {
             'hip_kp': 100,
-            'hip_kd': 5,
+            'hip_kd': 25,
             'hip_gear': 150,
             'hip_armature': 0.1,
             'knee_kp': 100,
-            'knee_kd': 5,
+            'knee_kd': 25,
             'knee_gear': 150,
             'knee_armature': 0.1,
-            'wheel_kp': 50,
-            'wheel_kd': 5,
+            'wheel_kp': 100,
+            'wheel_kd': 25,
             'wheel_gear': 70,
             'wheel_armature': 0.1,
         }
@@ -83,8 +83,8 @@ class GenModel:
         # Create front thigh
         front_thigh = torso_body.add_body(
             name = 'front_thigh',
-            pos = [model_params['torso_len']/2 + model_params['thigh_len']/2, 0, 0],
-            quat = [1, 0, 1, 0],
+            pos = [model_params['torso_len']/2 , 0, -model_params['thigh_len']/2],
+            quat = [0, 0, 1, 0],
         )
         front_thigh.add_geom(
             type = mujoco.mjtGeom.mjGEOM_CAPSULE,
@@ -161,9 +161,10 @@ class GenModel:
         # Create rear thigh
         rear_thigh = torso_body.add_body(
             name = 'rear_thigh',
-            pos = [-model_params['torso_len']/2 - model_params['thigh_len']/2, 0, 0],
-            quat = [1, 0, 1, 0],
+            pos = [-model_params['torso_len']/2, 0, -model_params['thigh_len']/2],
+            quat = [1, 0, 0, 0],
         )
+
         rear_thigh.add_geom(
             type = mujoco.mjtGeom.mjGEOM_CAPSULE,
             size = [model_params['segment_thickness'], model_params['thigh_len']/2, 0],

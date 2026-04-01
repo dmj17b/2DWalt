@@ -13,9 +13,19 @@ from brax.training.agents.ppo import networks as ppo_networks
 from brax.training.agents.ppo import networks_vision as ppo_networks_vision
 from brax.training.agents.ppo import train as ppo
 from brax.training.acme import running_statistics
+from pygame import joystick
+import pygame
+
 print(jax.devices())
 
 def main():
+    # Initialize joystick
+    joystick.init()
+    js = joystick.Joystick(0)  # Initialize the first joystick
+    js.init()
+    pygame.init()
+    
+
     # Initialize the environment
     env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
@@ -61,14 +71,16 @@ def main():
 
             viewer.sync()  # Sync the viewer to update the visualization
 
+            # Get velocity command from joystick input (for testing purposes)
+            pygame.event.pump()  # Process event queue to update joystick state
+            joystick_state = js.get_axis(1)  # Get the vertical axis of the first joystick
+            velocity_command = -joystick_state * env.max_vel_command  # Scale and invert the command
+            print(velocity_command)
+            state = state.replace(info={'command': velocity_command})  # Update the state info with the new command
+
             # Update the MJX state with any changes from viewer interactions (e.g., user dragging the model)
             state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
 
-            # Print rewards for debugging
-            # print(f"Step: {n_steps}, Total Reward: {state.reward}")
-            # print(f"Body Pitch Reward: {state.metrics['reward/body_pitch']:.3f}")
-            # print(f"Low Torques Reward: {state.metrics['reward/low_torques']:.6f}")
-            # print(f"Velocity Tracking Reward: {state.metrics['reward/vel_tracking']:.3f}\n")
 
             # Sample a random action (for testing purposes) every 5 sim steps:
             if n_steps % 5 == 0:
@@ -78,12 +90,12 @@ def main():
             state = step_fn(state, action[0])  # Step the environment
             n_steps += 1
 
-            if n_steps > 500:
-                print("Episode length reached. Resetting environment.")
-                key, subkey = jax.random.split(key)
-                state = reset_fn(subkey)
-                print(f"New Velocity Command: {state.info['command']:.3f}\n")
-                n_steps = 0
+            # if n_steps > 500:
+            #     print("Episode length reached. Resetting environment.")
+            #     key, subkey = jax.random.split(key)
+            #     state = reset_fn(subkey)
+            #     print(f"New Velocity Command: {state.info['command']:.3f}\n")
+            #     n_steps = 0
 
             elapsed = time.time()-start_time
             if elapsed < dt:

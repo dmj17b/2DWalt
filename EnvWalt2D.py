@@ -44,12 +44,19 @@ class EnvWalt2D(mjx_env.MjxEnv):
         self.config = config  # Store the configuration
         self.reward_config = reward_config  # Store the reward configuration
 
+        # Command parameters
+        self.max_vel_command = 2.0  # Maximum velocity command for the environment
+
+        # Action scaling factors for different joints:
+        self.hip_action_scale = 1.5  # Scaling factor for hip joint actions
+        self.knee_action_scale = 1.5  # Scaling factor for knee joint actions
+        self.wheel_action_scale = 15.0  # Scaling factor for wheel joint actions
+
 
 
         self._mj_model = model_spec.spec.compile()  # Compile the model and store it
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # Convert to JAX-compatible model
 
-        self.action_scale = 2.0  # Scale for actions
         self.default_ctrl = jp.zeros(self.mjx_model.nu)  # Default control inputs
 
         # Define joint indices:
@@ -105,6 +112,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
             "reward/body_pitch": jp.zeros(()),
             "reward/low_torques": jp.zeros(()),
             "reward/vel_tracking": jp.zeros(()),
+            "reward/body_z_vel": jp.zeros(()),
+            "reward/body_pitch_vel": jp.zeros(()),
             "train/episode_reward": jp.zeros(()),
             "train/episode_reward_err": jp.zeros(()),
         }
@@ -128,14 +137,14 @@ class EnvWalt2D(mjx_env.MjxEnv):
     # Also computes the resulting observation, reward, done flag, and metrics.
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
 
-        f_hip_target = self.default_ctrl[self.f_hip_act_addr] + self.action_scale * action[0]
-        f_knee_target = state.data.qpos[self.f_knee_qpos_addr] + self.action_scale * action[1]
-        f_wheel1_target = self.default_ctrl[self.f_wheel1_act_addr] + self.action_scale * action[2]
-        f_wheel2_target = self.default_ctrl[self.f_wheel2_act_addr] + self.action_scale * action[3]
-        r_hip_target = self.default_ctrl[self.r_hip_act_addr] + self.action_scale * action[4]
-        r_knee_target = state.data.qpos[self.r_knee_qpos_addr] + self.action_scale * action[5]
-        r_wheel1_target = self.default_ctrl[self.r_wheel1_act_addr] + self.action_scale * action[6]
-        r_wheel2_target = self.default_ctrl[self.r_wheel2_act_addr] + self.action_scale * action[7]
+        f_hip_target = self.default_ctrl[self.f_hip_act_addr] + self.hip_action_scale * action[0]
+        f_knee_target = state.data.qpos[self.f_knee_qpos_addr] + self.knee_action_scale * action[1]
+        f_wheel1_target = self.default_ctrl[self.f_wheel1_act_addr] + self.wheel_action_scale * action[2]
+        f_wheel2_target = self.default_ctrl[self.f_wheel2_act_addr] + self.wheel_action_scale * action[3]
+        r_hip_target = self.default_ctrl[self.r_hip_act_addr] + self.hip_action_scale * action[4]
+        r_knee_target = state.data.qpos[self.r_knee_qpos_addr] + self.knee_action_scale * action[5]
+        r_wheel1_target = self.default_ctrl[self.r_wheel1_act_addr] + self.wheel_action_scale * action[6]
+        r_wheel2_target = self.default_ctrl[self.r_wheel2_act_addr] + self.wheel_action_scale * action[7]
 
 
         motor_targets = jp.array([
@@ -166,23 +175,40 @@ class EnvWalt2D(mjx_env.MjxEnv):
                     info: Dict[str, Any],
                     metrics: dict[str, Any],
     ) -> jax.Array:
-        # Reward for maintaining low body pitch angles
-        body_pitch = data.qpos[2]  # Get the pitch of the body
-        # body_pitch_reward = self.tracking_reward(0.0, body_pitch)*self.reward_config.body_pitch  # Reward for keeping body pitch close to 0
-        body_pitch_reward = -self.reward_config.body_pitch*jp.square(body_pitch)  # Quadratic penalty for body pitch angle, scaled by reward_config 
+        # Penalty for deviating too far from zero body pitch:
+        body_pitch = data.qpos[self.y_rot_qpos_addr]  # Get the pitch of the body
+        body_pitch_penalty = -self.reward_config.body_pitch*jp.square(body_pitch)  # Quadratic penalty for body pitch angle, scaled by reward_config 
+
+        body_pitch_vel = data.qvel[self.y_rot_qpos_addr]  # Get the angular velocity of the body pitch
+        body_pitch_vel_penalty = -self.reward_config.body_pitch_vel*jp.square(body_pitch_vel)  # Quadratic penalty for body pitch velocity, scaled by reward_config
+
+        # Penalty for body z-velocity change (encourages maintaining consistent height):
+        z_vel = data.qvel[self.z_slide_qpos_addr]  # Get the vertical velocity
+        z_vel_penalty = -self.reward_config.body_z_vel*jp.square(z_vel)  # Quadratic penalty for vertical velocity, scaled by reward_config
+
+        # Penalty for body height dropping below a specified value (encourages maintaining height):
+        z_height = data.qpos[self.z_slide_qpos_addr]
+        height_penalty = jp.where(z_height < -0.1, self.reward_config.height_penalty, 0.0)  # Apply penalty if height is below threshold
+        
+
         # Penalize large torques
         joint_torques = data.qfrc_actuator  # Get the actuator forces
         low_torques_reward = jp.sum(jp.square(joint_torques))*self.reward_config.low_torques  # Reward low torque usage
         fwd_vel = data.qvel[0]  # Get the forward velocity
-        vel_tracking_reward = self.tracking_reward(info["command"], fwd_vel, sigma=0.75)*self.reward_config.vel_tracking  # Reward forward velocity
+        vel_tracking_reward = self.tracking_reward(info["command"], fwd_vel, sigma=0.5)*self.reward_config.vel_tracking  # Reward forward velocity
+
+        # Total reward
+        episode_reward = body_pitch_penalty + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + vel_tracking_reward
 
 
-        metrics["reward/body_pitch"] = body_pitch_reward
+        metrics["reward/body_pitch"] = body_pitch_penalty
+        metrics["reward/body_pitch_vel"] = body_pitch_vel_penalty
         metrics["reward/low_torques"] = low_torques_reward
         metrics["reward/vel_tracking"] = vel_tracking_reward
-        metrics["train/episode_reward"] = body_pitch_reward + low_torques_reward + vel_tracking_reward
+        metrics["reward/body_z_vel"] = z_vel_penalty
+        metrics["train/episode_reward"] = episode_reward
 
-        return body_pitch_reward + low_torques_reward + vel_tracking_reward
+        return episode_reward
 
     # Helper function to compute a tracking reward based on the error between desired and actual values.
     # Uses exponential kernel to convert error into a reward, with a scaling factor sigma.
@@ -200,7 +226,6 @@ class EnvWalt2D(mjx_env.MjxEnv):
 
     """Returns the observation from the environment as a JAX array."""
     def _get_obs(self, data: mjx.Data, info: dict[str, Any]) -> jax.Array:
-
         vel_command = jp.array([info["command"]])  # Get the velocity command from the info dictionary
         body_pitch = jp.array([data.qpos[self.y_rot_qpos_addr]]) # Get the pitch of the body
         f_hip_pos = jp.array([data.qpos[3]])  # Get the position of the front hip
@@ -223,7 +248,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
     
     def sample_command(self, rng: jax.Array) -> jax.Array:
         rng, command_rng = jax.random.split(rng)
-        command = jax.random.uniform(command_rng, minval=-3.0, maxval=3.0)
+        command = jax.random.uniform(command_rng, minval=-self.max_vel_command, maxval=self.max_vel_command)
         return command
 
     @property
