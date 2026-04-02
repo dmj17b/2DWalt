@@ -48,10 +48,9 @@ def main():
             # Print rewards for debugging
             # print(f"Step: {n_steps}, Total Reward: {state.reward}")
             # print(f"Body Pitch Reward: {state.metrics['reward/body_pitch']:.3f}")
-            # print(f"Low Torques Reward: {state.metrics['reward/low_torques']:.6f}")
+            print(f"Low Torques Reward: {state.metrics['reward/low_torques']:.6f}")
             # print(f"Velocity Tracking Reward: {state.metrics['reward/vel_tracking']:.3f}\n")
             # Print body vel:
-            print(f"Body x-velocity: {state.data.qvel[0]:.3f}")
             # Call inference function to get action from the PPO policy every 5 sim steps:
             if n_steps % 5 == 0:
                 key, subkey = jax.random.split(key)

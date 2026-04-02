@@ -14,19 +14,19 @@ env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
 env_cfg = env.config  # Retrieve the environment configuration
 ppo_params = {
     'action_repeat': 5,
-    'batch_size': 1024,
+    'batch_size': 2048,
     'discounting': 0.995,
     'entropy_cost': 0.001,
-    'episode_length': 1000,
+    'episode_length': 1500,
     'learning_rate': 1e-4,
     'num_envs': 4096,
     'num_evals': 20,  
     'num_minibatches': 32,
-    'num_updates_per_batch': 8,
+    'num_updates_per_batch': 4,
     'num_timesteps': 100_000_000,  
     'normalize_observations': True,
     'reward_scaling': 1.0,
-    'unroll_length': 50,
+    'unroll_length': 32,
     }
 
 #---------- WandB logging setup ------------#
@@ -44,19 +44,26 @@ def _to_float(value):
 
 # Progress callback
 def progress(num_steps, metrics):
+    if not hasattr(progress, "eval_counter"):
+        progress.eval_counter = 0  # Initialize the counter on the first call
+
+    print(f"Evaluation #{progress.eval_counter}:")
     print(f"Steps: {num_steps}")
     print(f"Body pitch reward: {metrics['eval/episode_reward/body_pitch']:.4f}")
     print(f"Velocity tracking reward: {metrics['eval/episode_reward/vel_tracking']:.4f}")
-    print(f"Torque Penalty: {metrics['eval/episode_reward/low_torques']:.6f}")
+    print(f"Work Penalty: {metrics['eval/episode_reward/low_torques']:.6f}")
     print(f"Body z-velocity penalty: {metrics['eval/episode_reward/body_z_vel']:.4f}")
     print(f"Body pitch velocity penalty: {metrics['eval/episode_reward/body_pitch_vel']:.4f}")
+    print(f"Height penalty: {metrics['eval/episode_reward/height_penalty']:.4f}")
+    print(f"Action smoothing penalty: {metrics['eval/episode_reward/action_smoothing']:.6f}")
     print(f"Total reward: {metrics['eval/episode_reward']:.4f}\n")
 
-    wandb_metrics = {k: _to_float(v) for k, v in metrics.items()}
-    wandb_metrics = {k: v for k, v in wandb_metrics.items() if v is not None}
-    wandb_metrics["num_steps"] = int(num_steps)
-    run.log(wandb_metrics, step=int(num_steps))
-    
+    if progress.eval_counter != 0:  # Skip logging on the first evaluation to avoid clutter
+        wandb_metrics = {k: _to_float(v) for k, v in metrics.items()}
+        wandb_metrics = {k: v for k, v in wandb_metrics.items() if v is not None}
+        wandb_metrics["num_steps"] = int(num_steps)
+        run.log(wandb_metrics, step=int(num_steps))
+    progress.eval_counter += 1  # Increment the counter after logging
 
 ppo_training_params = dict(ppo_params)
 

@@ -1,9 +1,11 @@
 # TODO:
 - sin/cos of body angle in observation
-- Implement exponential kernel
-- Add velocity tracking term that changes with each reset
+- Change from torque penalty to work penalty (tau*joint_vel)
+- Add timed command changes and zero-velocity commands
+- Add reward configs to wandb
+- Fix action smoothing? 
+- Randomized obstacle "generation"
+    - Start with N obstacles, all "underground" then randomize their heights with each test
+
 
 # Questions for Jacob:
-- Mentioned that actions were sampled from a mean and std deviation
-    - Where does this happen? And is that not just for training? 
-    - I would think that policy execution on hardware (or for evaluation) is deterministic

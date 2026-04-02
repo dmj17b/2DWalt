@@ -5,13 +5,13 @@ import flax.struct
 @flax.struct.dataclass
 class RewardConfig:
     vel_tracking = 100.0
-    body_pitch = 50.0
-    body_pitch_vel = 1.0
-    low_torques = -0.001
+    body_pitch = 100.0
+    body_pitch_vel = 10.0
+    low_torques = 0.001
     body_z_vel = 10.0
-    height_penalty = 1.0
-    alive = 0.0
-    termination = -100.0
+    height_penalty = 10.0
+    action_smoothing = 10.0
+
 
 @flax.struct.dataclass
 class EnvConfig:

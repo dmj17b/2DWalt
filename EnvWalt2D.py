@@ -21,7 +21,7 @@ def default_config() -> config_dict.ConfigDict:
         ctrl_dt = 0.01,
         sim_dt = 0.002,
         episode_length = 1000,
-        action_repeat = 1,
+        action_repeat = 5,
         impl = 'jax',
     )
 
@@ -46,6 +46,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
 
         # Command parameters
         self.max_vel_command = 2.0  # Maximum velocity command for the environment
+        self.zero_probability = 0.1  # Probability of sampling a zero velocity command
 
         # Action scaling factors for different joints:
         self.hip_action_scale = 1.5  # Scaling factor for hip joint actions
@@ -114,6 +115,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
             "reward/vel_tracking": jp.zeros(()),
             "reward/body_z_vel": jp.zeros(()),
             "reward/body_pitch_vel": jp.zeros(()),
+            "reward/height_penalty": jp.zeros(()),
+            "reward/action_smoothing": jp.zeros(()),
             "train/episode_reward": jp.zeros(()),
             "train/episode_reward_err": jp.zeros(()),
         }
@@ -126,6 +129,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
         info = {
             "rng": rng,
             "command": command,
+            "prev_action": jp.zeros(self.action_size),  # Initialize previous action to zeros
             } 
 
         obs = self._get_obs(data, info)  # Get the initial observation
@@ -158,15 +162,19 @@ class EnvWalt2D(mjx_env.MjxEnv):
             motor_targets,
             self.n_substeps,
         )
+
         
         obs = self._get_obs(data, state.info)  # Get the observation after the step
 
         reward = self._get_reward(data, action, state.info, state.metrics)  # Compute the reward
+        new_info = dict(state.info)  # Create a new info dictionary based on the current state's info
+        new_info["prev_action"] = action  # Update the previous action in the info dictionary for use in the next step
+
 
         done = jp.float32(0)    # No terminal state
 
         
-        return mjx_env.State(data, obs, reward, done, state.metrics, state.info)
+        return mjx_env.State(data, obs, reward, done, state.metrics, new_info)
 
     # Calculates reward based on the current state and action.
     def _get_reward(self,
@@ -188,17 +196,25 @@ class EnvWalt2D(mjx_env.MjxEnv):
 
         # Penalty for body height dropping below a specified value (encourages maintaining height):
         z_height = data.qpos[self.z_slide_qpos_addr]
-        height_penalty = jp.where(z_height < -0.1, self.reward_config.height_penalty, 0.0)  # Apply penalty if height is below threshold
+        height_penalty = jp.where(z_height < -0.1, -self.reward_config.height_penalty, 0.0)  # Apply penalty if height is below threshold
         
 
-        # Penalize large torques
-        joint_torques = data.qfrc_actuator  # Get the actuator forces
-        low_torques_reward = jp.sum(jp.square(joint_torques))*self.reward_config.low_torques  # Reward low torque usage
+        # Penalize work
+        joint_torques = data.qfrc_actuator[3:]  # Get the actuator forces
+        joint_velocities = data.qvel[3:]  # Get the joint velocities (excluding the first 3 which are for the floating base)
+        joint_work = jp.sum(joint_torques * joint_velocities)  # Compute the work done by the joints
+        low_torques_reward = -self.reward_config.low_torques*jp.square(joint_work)  # Reward low work, scaled by reward_config
+        # low_torques_reward = jp.sum(jp.square(joint_torques))*self.reward_config.low_torques  # Reward low torque usage
+
+        # Reward for tracking the commanded velocity:
         fwd_vel = data.qvel[0]  # Get the forward velocity
-        vel_tracking_reward = self.tracking_reward(info["command"], fwd_vel, sigma=0.5)*self.reward_config.vel_tracking  # Reward forward velocity
+        vel_tracking_reward = self.tracking_reward(info["command"], fwd_vel, sigma=0.2)*self.reward_config.vel_tracking  # Reward forward velocity
+
+        # Action smoothing:
+        action_smoothing = -jp.sum(jp.square(action - info["prev_action"])) * self.reward_config.action_smoothing
 
         # Total reward
-        episode_reward = body_pitch_penalty + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + vel_tracking_reward
+        episode_reward = body_pitch_penalty + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + vel_tracking_reward + action_smoothing
 
 
         metrics["reward/body_pitch"] = body_pitch_penalty
@@ -206,6 +222,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
         metrics["reward/low_torques"] = low_torques_reward
         metrics["reward/vel_tracking"] = vel_tracking_reward
         metrics["reward/body_z_vel"] = z_vel_penalty
+        metrics["reward/height_penalty"] = height_penalty
+        metrics["reward/action_smoothing"] = action_smoothing
         metrics["train/episode_reward"] = episode_reward
 
         return episode_reward
@@ -227,6 +245,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
     """Returns the observation from the environment as a JAX array."""
     def _get_obs(self, data: mjx.Data, info: dict[str, Any]) -> jax.Array:
         vel_command = jp.array([info["command"]])  # Get the velocity command from the info dictionary
+        prev_action = info["prev_action"]  # Get the previous action from the info dictionary
         body_pitch = jp.array([data.qpos[self.y_rot_qpos_addr]]) # Get the pitch of the body
         f_hip_pos = jp.array([data.qpos[3]])  # Get the position of the front hip
         f_knee_pos = jp.array([data.qpos[4]])%(2*jp.pi)  # Get the position of the front knee (modulo 2pi to handle wrapping)
@@ -242,13 +261,16 @@ class EnvWalt2D(mjx_env.MjxEnv):
             vel_command,
             body_pitch,
             f_hip_pos, f_knee_pos, f_knee_vel, r_hip_pos, r_knee_pos, r_knee_vel,
-            f_wheel1_vel, f_wheel2_vel, r_wheel1_vel, r_wheel2_vel
+            f_wheel1_vel, f_wheel2_vel, r_wheel1_vel, r_wheel2_vel,
+            prev_action
         ])
         return obs
     
     def sample_command(self, rng: jax.Array) -> jax.Array:
-        rng, command_rng = jax.random.split(rng)
+        rng, command_rng, zero_rng = jax.random.split(rng, num=3)
+        is_zero_command = jax.random.uniform(zero_rng) < self.zero_probability
         command = jax.random.uniform(command_rng, minval=-self.max_vel_command, maxval=self.max_vel_command)
+        command = jp.where(is_zero_command, 0.0, command)
         return command
 
     @property

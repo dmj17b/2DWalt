@@ -19,6 +19,8 @@ import pygame
 print(jax.devices())
 
 def main():
+    model_path = "walter_ppo_retrain"  # Path to the saved PPO model parameters
+
     # Initialize joystick
     joystick.init()
     js = joystick.Joystick(0)  # Initialize the first joystick
@@ -47,7 +49,6 @@ def main():
     dt = env._mj_model.opt.timestep  # Get the simulation timestep
     
     # Load the PPO model:
-    model_path = "walter_ppo"  # Path to the saved PPO model parameters
     params = model.load_params(model_path)
     inference_fn = ppo_networks.make_inference_fn(
         ppo_networks.make_ppo_networks(
@@ -76,7 +77,9 @@ def main():
             joystick_state = js.get_axis(1)  # Get the vertical axis of the first joystick
             velocity_command = -joystick_state * env.max_vel_command  # Scale and invert the command
             print(velocity_command)
-            state = state.replace(info={'command': velocity_command})  # Update the state info with the new command
+            info = dict(state.info)
+            info['command'] = jp.asarray(velocity_command)
+            state = state.replace(info=info)  # Update the state info with the new command
 
             # Update the MJX state with any changes from viewer interactions (e.g., user dragging the model)
             state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
@@ -89,13 +92,6 @@ def main():
 
             state = step_fn(state, action[0])  # Step the environment
             n_steps += 1
-
-            # if n_steps > 500:
-            #     print("Episode length reached. Resetting environment.")
-            #     key, subkey = jax.random.split(key)
-            #     state = reset_fn(subkey)
-            #     print(f"New Velocity Command: {state.info['command']:.3f}\n")
-            #     n_steps = 0
 
             elapsed = time.time()-start_time
             if elapsed < dt:

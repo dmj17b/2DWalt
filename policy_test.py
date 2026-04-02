@@ -65,10 +65,7 @@ def main():
             state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
 
             # Print rewards for debugging
-            # print(f"Step: {n_steps}, Total Reward: {state.reward}")
-            # print(f"Body Pitch Reward: {state.metrics['reward/body_pitch']:.3f}")
-            # print(f"Low Torques Reward: {state.metrics['reward/low_torques']:.6f}")
-            # print(f"Velocity Tracking Reward: {state.metrics['reward/vel_tracking']:.3f}\n")
+            print(f"Action smoothing reward: {state.metrics['reward/action_smoothing']:.6f}")
 
             # Sample a random action (for testing purposes) every 5 sim steps:
             if n_steps % 5 == 0:
