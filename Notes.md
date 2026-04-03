@@ -1,11 +1,15 @@
 # TODO:
-- sin/cos of body angle in observation
-- Change from torque penalty to work penalty (tau*joint_vel)
 - Add timed command changes and zero-velocity commands
 - Add reward configs to wandb
-- Fix action smoothing? 
 - Randomized obstacle "generation"
     - Start with N obstacles, all "underground" then randomize their heights with each test
+- Refactor config inclusions for better reusability
+- Switch velocity tracking to BODY frame instead of world frame
+- (Eventually) add distance sensors at front and rear of body
+- Add friction to joints
 
+# Ideas:
+- Warm start policy with data from joystick control?
+- Penalize hip/knee torque more than wheels (weighted torque )
 
 # Questions for Jacob:

@@ -19,7 +19,7 @@ import EnvWalt2D
     
 def main():
 
-    resume_path = "walter_ppo"  # Path to the saved PPO model parameters to resume training from
+    resume_path = "walter_ppo_retrain"  # Path to the saved PPO model parameters to resume training from
     resume_params = model.load_params(resume_path)
 
     env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
@@ -29,7 +29,7 @@ def main():
         'batch_size': 2048,
         'discounting': 0.995,
         'entropy_cost': 0.0001,
-        'episode_length': 1000,
+        'episode_length': env_cfg.episode_length,
         'learning_rate': 5e-5,
         'num_envs': 4096,
         'num_evals': 10,  
@@ -38,7 +38,7 @@ def main():
         'num_timesteps': 10_000_000,  
         'normalize_observations': True,
         'reward_scaling': 1.0,
-        'unroll_length': 50,
+        'unroll_length': 64,
         }
 
     #---------- WandB logging setup ------------#
@@ -56,20 +56,32 @@ def main():
 
     # Progress callback
     def progress(num_steps, metrics):
-        print(f"Steps: {num_steps}")
-        print(f"Body pitch reward: {metrics['eval/episode_reward/body_pitch']:.4f}")
-        print(f"Velocity tracking reward: {metrics['eval/episode_reward/vel_tracking']:.4f}")
-        print(f"Torque Penalty: {metrics['eval/episode_reward/low_torques']:.6f}")
-        print(f"Body z-velocity penalty: {metrics['eval/episode_reward/body_z_vel']:.4f}")
-        print(f"Body pitch velocity penalty: {metrics['eval/episode_reward/body_pitch_vel']:.4f}")
-        print(f"Height penalty: {metrics['eval/episode_reward/height_penalty']:.4f}")
-        print(f"Action smoothing penalty: {metrics['eval/episode_reward/action_smoothing']:.6f}")
-        print(f"Total reward: {metrics['eval/episode_reward']:.4f}\n")
+        if not hasattr(progress, "eval_counter"):
+            progress.eval_counter = 0
 
-        wandb_metrics = {k: _to_float(v) for k, v in metrics.items()}
-        wandb_metrics = {k: v for k, v in wandb_metrics.items() if v is not None}
-        wandb_metrics["num_steps"] = int(num_steps)
-        run.log(wandb_metrics, step=int(num_steps))
+        # FIX: Print the available keys on the first run so you know exactly what Brax named them
+        if progress.eval_counter == 0:
+            print("Available Metric Keys:", list(metrics.keys()))
+
+        print(f"\nEvaluation #{progress.eval_counter}:")
+        print(f"Steps: {num_steps}")
+        print(f"Task reward: {metrics.get('eval/episode_reward/task', 0.0):.4f}")
+        print(f"Velocity tracking reward: {metrics.get('eval/episode_reward/vel_tracking', 0.0):.4f}")
+        print(f"Body pitch penalty: {metrics.get('eval/episode_reward/body_pitch', 0.0):.4f}")
+        print(f"Body pitch velocity penalty: {metrics.get('eval/episode_reward/body_pitch_vel', 0.0):.4f}")
+        print(f"Body z velocity penalty: {metrics.get('eval/episode_reward/body_z_vel', 0.0):.4f}")
+        print(f"Height penalty: {metrics.get('eval/episode_reward/height_penalty', 0.0):.4f}")
+        print(f"Torque Penalty: {metrics.get('eval/episode_reward/low_torques', 0.0):.6f}")
+        print(f"Action smoothing penalty: {metrics.get('eval/episode_reward/action_smoothing', 0.0):.6f}")
+        print(f"Total reward: {metrics.get('eval/episode_reward', 0.0):.4f}")
+
+        if progress.eval_counter != 0:  
+            wandb_metrics = {k: _to_float(v) for k, v in metrics.items()}
+            wandb_metrics = {k: v for k, v in wandb_metrics.items() if v is not None}
+            wandb_metrics["num_steps"] = int(num_steps)
+            run.log(wandb_metrics, step=int(num_steps))
+            
+        progress.eval_counter += 1
         
 
     
@@ -99,7 +111,7 @@ def main():
     )
 
     # Save the trained policy parameters and metrics:
-    model_path = "walter_ppo_retrain"
+    model_path = "walter_ppo_retrain2"
     model.save_params(model_path, params)
 
 

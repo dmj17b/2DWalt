@@ -21,7 +21,7 @@ def default_config() -> config_dict.ConfigDict:
         ctrl_dt = 0.01,
         sim_dt = 0.002,
         episode_length = 1000,
-        action_repeat = 5,
+        action_repeat = 1,
         impl = 'jax',
     )
 
@@ -47,6 +47,9 @@ class EnvWalt2D(mjx_env.MjxEnv):
         # Command parameters
         self.max_vel_command = 2.0  # Maximum velocity command for the environment
         self.zero_probability = 0.1  # Probability of sampling a zero velocity command
+        self.min_steps_per_command = 100  # Minimum number of steps to maintain a command before resampling
+        self.max_steps_per_command = 500  # Maximum number of steps to maintain a command before resampling
+
 
         # Action scaling factors for different joints:
         self.hip_action_scale = 1.5  # Scaling factor for hip joint actions
@@ -85,6 +88,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
         self.r_knee_qpos_addr = self._mj_model.jnt_qposadr[self.r_knee_jid]
         self.r_wheel1_qpos_addr = self._mj_model.jnt_qposadr[self.r_wheel1_jid]
         self.r_wheel2_qpos_addr = self._mj_model.jnt_qposadr[self.r_wheel2_jid]
+        
 
         # Define actuator addresses:
         self.f_hip_act_addr = self._mj_model.actuator("front_hip_act").id
@@ -99,7 +103,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
     # Resets the environment to an initial state.
     def reset(self, rng: jax.Array) -> mjx_env.State:
         """Resets the environment to an initial state."""
-        rng, command_rng, = jax.random.split(rng)
+        rng, command_rng = jax.random.split(rng)
         qpos = self._reset_model_pos()  # Reset the model's position
         qvel = jp.zeros(self.mjx_model.nv)  # Initialize velocities to zero
 
@@ -110,6 +114,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
         )
 
         metrics = {
+            "reward/task": jp.zeros(()),
             "reward/body_pitch": jp.zeros(()),
             "reward/low_torques": jp.zeros(()),
             "reward/vel_tracking": jp.zeros(()),
@@ -183,9 +188,17 @@ class EnvWalt2D(mjx_env.MjxEnv):
                     info: Dict[str, Any],
                     metrics: dict[str, Any],
     ) -> jax.Array:
+        # Reward for tracking the commanded velocity:
+        fwd_vel = data.qvel[0]  # Get the forward velocity
+        vel_tracking_reward = self.tracking_reward(info["command"], fwd_vel, sigma=0.2)*self.reward_config.vel_tracking 
+
+
         # Penalty for deviating too far from zero body pitch:
         body_pitch = data.qpos[self.y_rot_qpos_addr]  # Get the pitch of the body
-        body_pitch_penalty = -self.reward_config.body_pitch*jp.square(body_pitch)  # Quadratic penalty for body pitch angle, scaled by reward_config 
+        body_pitch_penalty = jp.exp(-self.reward_config.body_pitch*jp.square(body_pitch))  # Alternative: Exponential penalty for body pitch angle, scaled by reward_config
+
+        task_reward = vel_tracking_reward*body_pitch_penalty  # Combine velocity tracking reward with exponential body pitch penalty 
+
 
         body_pitch_vel = data.qvel[self.y_rot_qpos_addr]  # Get the angular velocity of the body pitch
         body_pitch_vel_penalty = -self.reward_config.body_pitch_vel*jp.square(body_pitch_vel)  # Quadratic penalty for body pitch velocity, scaled by reward_config
@@ -201,22 +214,16 @@ class EnvWalt2D(mjx_env.MjxEnv):
 
         # Penalize work
         joint_torques = data.qfrc_actuator[3:]  # Get the actuator forces
-        joint_velocities = data.qvel[3:]  # Get the joint velocities (excluding the first 3 which are for the floating base)
-        joint_work = jp.sum(joint_torques * joint_velocities)  # Compute the work done by the joints
-        low_torques_reward = -self.reward_config.low_torques*jp.square(joint_work)  # Reward low work, scaled by reward_config
-        # low_torques_reward = jp.sum(jp.square(joint_torques))*self.reward_config.low_torques  # Reward low torque usage
+        low_torques_reward = -jp.sum(jp.square(joint_torques))*self.reward_config.low_torques  # Reward low torque usage
 
-        # Reward for tracking the commanded velocity:
-        fwd_vel = data.qvel[0]  # Get the forward velocity
-        vel_tracking_reward = self.tracking_reward(info["command"], fwd_vel, sigma=0.2)*self.reward_config.vel_tracking  # Reward forward velocity
 
         # Action smoothing:
         action_smoothing = -jp.sum(jp.square(action - info["prev_action"])) * self.reward_config.action_smoothing
 
         # Total reward
-        episode_reward = body_pitch_penalty + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + vel_tracking_reward + action_smoothing
+        episode_reward = task_reward + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + action_smoothing
 
-
+        metrics["reward/task"] = task_reward
         metrics["reward/body_pitch"] = body_pitch_penalty
         metrics["reward/body_pitch_vel"] = body_pitch_vel_penalty
         metrics["reward/low_torques"] = low_torques_reward
@@ -247,20 +254,22 @@ class EnvWalt2D(mjx_env.MjxEnv):
         vel_command = jp.array([info["command"]])  # Get the velocity command from the info dictionary
         prev_action = info["prev_action"]  # Get the previous action from the info dictionary
         body_pitch = jp.array([data.qpos[self.y_rot_qpos_addr]]) # Get the pitch of the body
-        f_hip_pos = jp.array([data.qpos[3]])  # Get the position of the front hip
-        f_knee_pos = jp.array([data.qpos[4]])%(2*jp.pi)  # Get the position of the front knee (modulo 2pi to handle wrapping)
-        f_knee_vel = jp.array([data.qvel[4]])  # Get the velocity of the front knee
-        r_hip_pos = jp.array([data.qpos[7]])  # Get the position of the rear hip
-        r_knee_pos = jp.array([data.qpos[8]])%(2*jp.pi)  # Get the position of the rear knee (modulo 2pi to handle wrapping)
-        r_knee_vel = jp.array([data.qvel[8]])  # Get the velocity of the rear knee
-        f_wheel1_vel = jp.array([data.qvel[5]])  # Get the velocity of the front wheel 1
-        f_wheel2_vel = jp.array([data.qvel[6]])  # Get the velocity of the front wheel 2
-        r_wheel1_vel = jp.array([data.qvel[9]])  # Get the velocity of the rear wheel 1
-        r_wheel2_vel = jp.array([data.qvel[10]])  # Get the velocity of the rear wheel 2
+        f_hip_pos = jp.array([data.qpos[self.f_hip_qpos_addr]])  # Get the position of the front hip
+        f_knee_sin = jp.array([jp.sin(data.qpos[self.f_knee_qpos_addr])])  # Use sine of knee angle to avoid discontinuities
+        f_knee_cos = jp.array([jp.cos(data.qpos[self.f_knee_qpos_addr])])  # Include both sine and cosine to fully capture the knee angle information without discontinuities
+        f_knee_vel = jp.array([data.qvel[self.f_knee_qpos_addr]])  # Get the velocity of the front knee
+        r_hip_pos = jp.array([data.qpos[self.r_hip_qpos_addr]])  # Get the position of the rear hip
+        r_knee_sin = jp.array([jp.sin(data.qpos[self.r_knee_qpos_addr])])  # Use sine of knee angle to avoid discontinuities
+        r_knee_cos = jp.array([jp.cos(data.qpos[self.r_knee_qpos_addr])])  # Include both sine and cosine to fully capture the knee angle information without discontinuities
+        r_knee_vel = jp.array([data.qvel[self.r_knee_qpos_addr]])  # Get the velocity of the rear knee
+        f_wheel1_vel = jp.array([data.qvel[self.f_wheel1_qpos_addr]])  # Get the velocity of the front wheel 1
+        f_wheel2_vel = jp.array([data.qvel[self.f_wheel2_qpos_addr]])  # Get the velocity of the front wheel 2
+        r_wheel1_vel = jp.array([data.qvel[self.r_wheel1_qpos_addr]])  # Get the velocity of the rear wheel 1
+        r_wheel2_vel = jp.array([data.qvel[self.r_wheel2_qpos_addr]])  # Get the velocity of the rear wheel 2
         obs = jp.concatenate([
             vel_command,
             body_pitch,
-            f_hip_pos, f_knee_pos, f_knee_vel, r_hip_pos, r_knee_pos, r_knee_vel,
+            f_hip_pos, f_knee_sin, f_knee_cos, f_knee_vel, r_hip_pos, r_knee_sin, r_knee_cos, r_knee_vel,
             f_wheel1_vel, f_wheel2_vel, r_wheel1_vel, r_wheel2_vel,
             prev_action
         ])

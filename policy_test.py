@@ -37,7 +37,7 @@ def main():
     dt = env._mj_model.opt.timestep  # Get the simulation timestep
     
     # Load the PPO model:
-    model_path = "walter_ppo"  # Path to the saved PPO model parameters
+    model_path = "walter_ppo_retrain2"  # Path to the saved PPO model parameters
     params = model.load_params(model_path)
     inference_fn = ppo_networks.make_inference_fn(
         ppo_networks.make_ppo_networks(
@@ -65,7 +65,6 @@ def main():
             state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
 
             # Print rewards for debugging
-            print(f"Action smoothing reward: {state.metrics['reward/action_smoothing']:.6f}")
 
             # Sample a random action (for testing purposes) every 5 sim steps:
             if n_steps % 5 == 0:

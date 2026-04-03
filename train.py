@@ -13,11 +13,11 @@ import wandb
 env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
 env_cfg = env.config  # Retrieve the environment configuration
 ppo_params = {
-    'action_repeat': 5,
-    'batch_size': 2048,
+    'action_repeat': 1,
+    'batch_size': 4096,
     'discounting': 0.995,
     'entropy_cost': 0.001,
-    'episode_length': 1500,
+    'episode_length': env_cfg.episode_length,
     'learning_rate': 1e-4,
     'num_envs': 4096,
     'num_evals': 20,  
@@ -45,25 +45,31 @@ def _to_float(value):
 # Progress callback
 def progress(num_steps, metrics):
     if not hasattr(progress, "eval_counter"):
-        progress.eval_counter = 0  # Initialize the counter on the first call
+        progress.eval_counter = 0
 
-    print(f"Evaluation #{progress.eval_counter}:")
+    # FIX: Print the available keys on the first run so you know exactly what Brax named them
+    if progress.eval_counter == 0:
+        print("Available Metric Keys:", list(metrics.keys()))
+
+    print(f"\nEvaluation #{progress.eval_counter}:")
     print(f"Steps: {num_steps}")
-    print(f"Body pitch reward: {metrics['eval/episode_reward/body_pitch']:.4f}")
-    print(f"Velocity tracking reward: {metrics['eval/episode_reward/vel_tracking']:.4f}")
-    print(f"Work Penalty: {metrics['eval/episode_reward/low_torques']:.6f}")
-    print(f"Body z-velocity penalty: {metrics['eval/episode_reward/body_z_vel']:.4f}")
-    print(f"Body pitch velocity penalty: {metrics['eval/episode_reward/body_pitch_vel']:.4f}")
-    print(f"Height penalty: {metrics['eval/episode_reward/height_penalty']:.4f}")
-    print(f"Action smoothing penalty: {metrics['eval/episode_reward/action_smoothing']:.6f}")
-    print(f"Total reward: {metrics['eval/episode_reward']:.4f}\n")
+    print(f"Task reward: {metrics.get('eval/episode_reward/task', 0.0):.4f}")
+    print(f"Velocity tracking reward: {metrics.get('eval/episode_reward/vel_tracking', 0.0):.4f}")
+    print(f"Body pitch penalty: {metrics.get('eval/episode_reward/body_pitch', 0.0):.4f}")
+    print(f"Body pitch velocity penalty: {metrics.get('eval/episode_reward/body_pitch_vel', 0.0):.4f}")
+    print(f"Body z velocity penalty: {metrics.get('eval/episode_reward/body_z_vel', 0.0):.4f}")
+    print(f"Height penalty: {metrics.get('eval/episode_reward/height_penalty', 0.0):.4f}")
+    print(f"Torque Penalty: {metrics.get('eval/episode_reward/low_torques', 0.0):.6f}")
+    print(f"Action smoothing penalty: {metrics.get('eval/episode_reward/action_smoothing', 0.0):.6f}")
+    print(f"Total reward: {metrics.get('eval/episode_reward', 0.0):.4f}")
 
-    if progress.eval_counter != 0:  # Skip logging on the first evaluation to avoid clutter
+    if progress.eval_counter != 0:  
         wandb_metrics = {k: _to_float(v) for k, v in metrics.items()}
         wandb_metrics = {k: v for k, v in wandb_metrics.items() if v is not None}
         wandb_metrics["num_steps"] = int(num_steps)
         run.log(wandb_metrics, step=int(num_steps))
-    progress.eval_counter += 1  # Increment the counter after logging
+        
+    progress.eval_counter += 1
 
 ppo_training_params = dict(ppo_params)
 

@@ -22,15 +22,15 @@ class GenModel:
             'hip_kp': 100,
             'hip_kd': 25,
             'hip_gear': 150,
-            'hip_armature': 0.1,
+            'hip_armature': 0.4,
             'knee_kp': 100,
             'knee_kd': 25,
             'knee_gear': 150,
-            'knee_armature': 0.1,
+            'knee_armature': 0.4,
             'wheel_kp': 100,
             'wheel_kd': 25,
             'wheel_gear': 70,
-            'wheel_armature': 0.1,
+            'wheel_armature': 0.2,
         }
 
         self.model_params = model_params
