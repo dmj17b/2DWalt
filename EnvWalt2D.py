@@ -11,7 +11,7 @@ import numpy as np  # Import numpy (not used in this snippet).
 from mujoco_playground._src import mjx_env  # Import custom environment base class.
 from mujoco_playground._src import reward  # Import reward utilities (not used in this snippet).
 from mujoco_playground._src.dm_control_suite import common  # Import common utilities for dm_control_suite.
-from env_config import (EnvConfig, RewardConfig)  # Import environment and reward configuration dataclasses.
+from env_config import (EnvConfig, RewardConfig, CommandConfig)  # Import environment and reward configuration dataclasses.
 
 import GenModel
 
@@ -34,6 +34,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
             config: config_dict.ConfigDict = default_config(),
             config_overrides: Optional[Dict[str, Union[str,int,list[any]]]] = None,
             reward_config: RewardConfig = RewardConfig(),
+            command_config: CommandConfig = CommandConfig(),
     ):
         super().__init__(config, config_overrides = config_overrides) # Initialize the base class with config
 
@@ -43,20 +44,19 @@ class EnvWalt2D(mjx_env.MjxEnv):
         # Load configurations
         self.config = config  # Store the configuration
         self.reward_config = reward_config  # Store the reward configuration
+        self.command_config = command_config  # Store the command configuration
 
         # Command parameters
-        self.max_vel_command = 2.0  # Maximum velocity command for the environment
-        self.zero_probability = 0.1  # Probability of sampling a zero velocity command
-        self.min_steps_per_command = 100  # Minimum number of steps to maintain a command before resampling
-        self.max_steps_per_command = 500  # Maximum number of steps to maintain a command before resampling
+        self.max_vel_command = self.command_config.max_vel  # Maximum velocity command for the environment
+        self.zero_probability = self.command_config.zero_cmd_prob  # Probability of sampling a zero velocity command
+        self.min_steps_per_command = int(self.command_config.min_cmd_duration / self.config.ctrl_dt)  # Minimum number of steps to maintain a command before resampling
+        self.max_steps_per_command = int(self.command_config.max_cmd_duration / self.config.ctrl_dt)  # Maximum number of steps to maintain a command before resampling
 
 
         # Action scaling factors for different joints:
         self.hip_action_scale = 1.5  # Scaling factor for hip joint actions
         self.knee_action_scale = 1.5  # Scaling factor for knee joint actions
         self.wheel_action_scale = 15.0  # Scaling factor for wheel joint actions
-
-
 
         self._mj_model = model_spec.spec.compile()  # Compile the model and store it
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # Convert to JAX-compatible model
@@ -127,6 +127,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
         }
 
         command = self.sample_command(command_rng)  # Sample an initial command for the environment
+        steps_until_cmd_change = jax.random.randint(command_rng, (), self.min_steps_per_command, self.max_steps_per_command + 1)  # Sample the number of steps until the next command change
+
 
         reward = jp.zeros(())  # Scalar reward
         done = jp.zeros(())  # Scalar done flag
@@ -135,6 +137,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
             "rng": rng,
             "command": command,
             "prev_action": jp.zeros(self.action_size),  # Initialize previous action to zeros
+            "steps_since_cmd_change": jp.zeros(()),  # Counter for steps since last command change
+            "steps_until_cmd_change": steps_until_cmd_change,  # Counter for steps until next command change
             } 
 
         obs = self._get_obs(data, info)  # Get the initial observation
@@ -172,9 +176,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
         obs = self._get_obs(data, state.info)  # Get the observation after the step
 
         reward = self._get_reward(data, action, state.info, state.metrics)  # Compute the reward
-        new_info = dict(state.info)  # Create a new info dictionary based on the current state's info
+        new_info = self._maybe_update_cmd(state.info)  # Maybe update the command and reset the counter if needed
         new_info["prev_action"] = action  # Update the previous action in the info dictionary for use in the next step
-
 
         done = jp.float32(0)    # No terminal state
 
@@ -248,6 +251,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
         """Resets the model to an initial state."""
         qpos = jp.zeros(self.mjx_model.nq)
         return qpos
+    
+
 
     """Returns the observation from the environment as a JAX array."""
     def _get_obs(self, data: mjx.Data, info: dict[str, Any]) -> jax.Array:
@@ -274,6 +279,36 @@ class EnvWalt2D(mjx_env.MjxEnv):
             prev_action
         ])
         return obs
+    
+
+    def _maybe_update_cmd(self, info: dict[str, Any]) -> dict[str, Any]:
+        """Checks if it's time to update the command and samples a new one if necessary."""
+        new_info = dict(info)
+        new_info["steps_since_cmd_change"] = info["steps_since_cmd_change"] + 1  # Increment the steps since last command change
+        command_key, time_key, rng = jax.random.split(info["rng"], num=3)  # Split the RNG for command sampling and time sampling
+
+        # Check if it's time to sample a new command:
+        new_cmd = jp.where(
+            new_info["steps_since_cmd_change"] >= new_info["steps_until_cmd_change"],
+            self.sample_command(command_key),  # Sample a new command if the counter has reached the threshold
+            info["command"]  # Otherwise, keep the current command
+        )
+        steps_since_cmd_change = jp.where(
+            new_info["steps_since_cmd_change"] >= new_info["steps_until_cmd_change"],
+            0,  # Reset the counter if a new command is sampled
+            new_info["steps_since_cmd_change"]  # Otherwise, keep the current counter
+        )
+        steps_until_cmd_change = jp.where(
+            new_info["steps_since_cmd_change"] >= new_info["steps_until_cmd_change"],
+            jax.random.randint(time_key, (), self.min_steps_per_command, self.max_steps_per_command + 1),  # Sample a new duration for the next command if the counter has reached the threshold
+            new_info["steps_until_cmd_change"]  # Otherwise, keep the current duration
+        )
+        new_info["steps_until_cmd_change"] = steps_until_cmd_change  # Update the steps until command change in the info dictionary
+        new_info["command"] = new_cmd  # Update the command in the info dictionary
+        new_info["steps_since_cmd_change"] = steps_since_cmd_change  # Update the counter in the info dictionary
+        new_info["rng"] = rng  # Update the RNG in the info dictionary for the next step
+
+        return new_info
     
     def sample_command(self, rng: jax.Array) -> jax.Array:
         rng, command_rng, zero_rng = jax.random.split(rng, num=3)

@@ -19,7 +19,7 @@ import pygame
 print(jax.devices())
 
 def main():
-    model_path = "walter_ppo_retrain"  # Path to the saved PPO model parameters
+    model_path = "walter_ppo3_hi_LR"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()
@@ -39,7 +39,6 @@ def main():
     # Reset the environment to get initial state
     key, subkey = jax.random.split(key)
     state = reset_fn(subkey)
-    print(f"Commanded Velocity: {state.info['command']:.3f}")
 
     # Create standard CPU mj_data
     mj_data = mujoco.MjData(env._mj_model)
@@ -82,7 +81,15 @@ def main():
             state = state.replace(info=info)  # Update the state info with the new command
 
             # Update the MJX state with any changes from viewer interactions (e.g., user dragging the model)
-            state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
+            state = state.replace(
+                data=state.data.replace(
+                    qpos=jp.array(mj_data.qpos),
+                    qvel=jp.array(mj_data.qvel),
+                    qfrc_applied=jp.array(mj_data.qfrc_applied),
+                    xfrc_applied=jp.array(mj_data.xfrc_applied),
+                    ctrl=jp.array(mj_data.ctrl),
+                )
+            )
 
 
             # Sample a random action (for testing purposes) every 5 sim steps:

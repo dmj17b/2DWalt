@@ -53,14 +53,16 @@ def main():
             viewer.sync()  # Sync the viewer to update the visualization
 
             # Update the MJX state with any changes from viewer interactions (e.g., user dragging the model)
-            state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
+            state = state.replace(
+                data=state.data.replace(
+                    qpos=jp.array(mj_data.qpos),
+                    qvel=jp.array(mj_data.qvel),
+                    qfrc_applied=jp.array(mj_data.qfrc_applied),
+                    xfrc_applied=jp.array(mj_data.xfrc_applied),
+                    ctrl=jp.array(mj_data.ctrl),
+                )
+            )
 
-            # Print rewards for debugging
-            # print(f"Step: {n_steps}, Total Reward: {state.reward}")
-
-            # print(f"Low Torques Reward: {state.metrics['reward/low_torques']:.6f}")
-            # print(f"Velocity Tracking Reward: {state.metrics['reward/vel_tracking']:.3f}\n")
-            # Print body vel:
             # Call inference function to get action from the PPO policy every 5 sim steps:
             if n_steps % 5 == 0:
                 pygame.event.pump()  # Process event queue to update joystick state
@@ -75,16 +77,16 @@ def main():
                 f_hip_pos = d_pad_y * hip_delta + f_hip_pos
                 r_hip_pos = d_pad_x * hip_delta + r_hip_pos
                 action = jp.array([-f_hip_pos, knee_vel, wheel_vel, wheel_vel, r_hip_pos, knee_vel, wheel_vel, wheel_vel])
-                print(f"Body Pitch Reward: {state.metrics['reward/body_pitch']:.3f}")
-                print(f"Velocity Tracking Reward: {state.metrics['reward/vel_tracking']:.3f}")
-                print(f"Task Reward: {state.metrics['reward/task']:.3f}\n")
+
 
 
             state = step_fn(state, action)  # Step the environment
-            # Fix the velocity command for testing purposes:
-            info = dict(state.info)
-            info['command'] = jp.asarray(0.5)  # Override the velocity command
-            state = state.replace(info=info)  # Update the state info with the new command
+
+            # Print command info for debugging
+            print(f"Commanded Velocity: {state.info['command']:.3f}")
+            print(f"Steps since command change: {state.info['steps_since_cmd_change']}")
+            print(f"Steps until command change: {state.info['steps_until_cmd_change']}\n")
+
             n_steps += 1
 
             elapsed = time.time()-start_time

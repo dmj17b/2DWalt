@@ -12,6 +12,13 @@ class RewardConfig:
     height_penalty = 10.0
     action_smoothing = 10.0
 
+@flax.struct.dataclass
+class CommandConfig:
+    max_vel: float = 1.5
+    min_cmd_duration: float = 0.5
+    max_cmd_duration: float = 2.0
+    zero_cmd_prob: float = 0.1
+
 
 @flax.struct.dataclass
 class EnvConfig:

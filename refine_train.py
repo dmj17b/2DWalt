@@ -19,8 +19,9 @@ import EnvWalt2D
     
 def main():
 
-    resume_path = "walter_ppo_retrain"  # Path to the saved PPO model parameters to resume training from
+    resume_path = "walter_ppo3"  # Path to the saved PPO model parameters to resume training from
     resume_params = model.load_params(resume_path)
+    save_path = "walter_ppo4"  # Path to save the new PPO model parameters after training
 
     env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
     env_cfg = env.config  # Retrieve the environment configuration
@@ -111,8 +112,7 @@ def main():
     )
 
     # Save the trained policy parameters and metrics:
-    model_path = "walter_ppo_retrain2"
-    model.save_params(model_path, params)
+    model.save_params(save_path, params)
 
 
 

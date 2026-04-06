@@ -16,6 +16,8 @@ from brax.training.acme import running_statistics
 print(jax.devices())
 
 def main():
+    model_path = "walter_ppo2"  # Path to the saved PPO model parameters
+
     # Initialize the environment
     env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
@@ -37,7 +39,6 @@ def main():
     dt = env._mj_model.opt.timestep  # Get the simulation timestep
     
     # Load the PPO model:
-    model_path = "walter_ppo_retrain2"  # Path to the saved PPO model parameters
     params = model.load_params(model_path)
     inference_fn = ppo_networks.make_inference_fn(
         ppo_networks.make_ppo_networks(
@@ -62,7 +63,15 @@ def main():
             viewer.sync()  # Sync the viewer to update the visualization
 
             # Update the MJX state with any changes from viewer interactions (e.g., user dragging the model)
-            state = state.replace(data = mjx.put_data(env.mj_model, mj_data, impl=env._config.impl))
+            state = state.replace(
+                data=state.data.replace(
+                    qpos=jp.array(mj_data.qpos),
+                    qvel=jp.array(mj_data.qvel),
+                    qfrc_applied=jp.array(mj_data.qfrc_applied),
+                    xfrc_applied=jp.array(mj_data.xfrc_applied),
+                    ctrl=jp.array(mj_data.ctrl),
+                )
+            )
 
             # Print rewards for debugging
 

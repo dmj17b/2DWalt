@@ -23,14 +23,17 @@ class GenModel:
             'hip_kd': 25,
             'hip_gear': 150,
             'hip_armature': 0.4,
+            'hip_frictionloss': 0.1,
             'knee_kp': 100,
             'knee_kd': 25,
             'knee_gear': 150,
             'knee_armature': 0.4,
+            'knee_frictionloss': 0.1,
             'wheel_kp': 100,
             'wheel_kd': 25,
             'wheel_gear': 70,
             'wheel_armature': 0.2,
+            'wheel_frictionloss': 0.01,
         }
 
         self.model_params = model_params
@@ -98,6 +101,7 @@ class GenModel:
             name = 'front_hip',
             pos = [0, 0, -model_params['thigh_len']/2],
             armature = motor_params['hip_armature'],
+            frictionloss = motor_params['hip_frictionloss'],
         )
         # Create front shin
         front_shin = front_thigh.add_body(
@@ -117,6 +121,7 @@ class GenModel:
             name = 'front_knee',
             pos = [0, 0, 0],
             armature = motor_params['knee_armature'],
+            frictionloss = motor_params['knee_frictionloss'],
         )
         # Adding front wheel #1
         front_wheel1 = front_shin.add_body(
@@ -136,6 +141,7 @@ class GenModel:
             name = 'front_wheel1',
             pos = [0, 0, 0],
             armature = motor_params['wheel_armature'],
+            frictionloss = motor_params['wheel_frictionloss'],
         )
         # Adding front wheel #2
         front_wheel2 = front_shin.add_body(
@@ -155,6 +161,7 @@ class GenModel:
             name = 'front_wheel2',
             pos = [0, 0, 0],
             armature = motor_params['wheel_armature'],
+            frictionloss = motor_params['wheel_frictionloss'],
         )
 
         ''' Assembling the rear leg '''
@@ -177,6 +184,7 @@ class GenModel:
             name = 'rear_hip',
             pos = [0, 0, model_params['thigh_len']/2],
             armature = motor_params['hip_armature'],
+            frictionloss = motor_params['hip_frictionloss'],
         )
         # Create rear shin
         rear_shin = rear_thigh.add_body(
@@ -196,6 +204,7 @@ class GenModel:
             name = 'rear_knee',
             pos = [0, 0, 0],
             armature = motor_params['knee_armature'],
+            frictionloss = motor_params['knee_frictionloss'],
         )
         # Adding rear wheel #1
         rear_wheel1 = rear_shin.add_body(
@@ -215,6 +224,7 @@ class GenModel:
             name = 'rear_wheel1',
             pos = [0, 0, 0],    
             armature = motor_params['wheel_armature'],
+            frictionloss = motor_params['wheel_frictionloss'],
         )
         # Adding rear wheel #2
         rear_wheel2 = rear_shin.add_body(
@@ -234,6 +244,7 @@ class GenModel:
             name = 'rear_wheel2',
             pos = [0, 0, 0],
             armature = motor_params['wheel_armature'],
+            frictionloss = motor_params['wheel_frictionloss'],
         )
 
         # Add actuators for the joints
@@ -343,6 +354,7 @@ class GenModel:
                     specular=[0., 0., 0.],
                 )
     
+    
 
     def compile_mj_model(self):
         self.model = self.spec.compile()
@@ -359,7 +371,8 @@ def main():
     walt = GenModel()
     walt.add_scene()
     walt.compile_to_xml('2DWalt.xml')
-
+    model = walt.compile_mj_model()
+    
 
 if __name__ == "__main__":
     main()

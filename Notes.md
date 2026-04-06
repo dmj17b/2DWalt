@@ -6,7 +6,7 @@
 - Refactor config inclusions for better reusability
 - Switch velocity tracking to BODY frame instead of world frame
 - (Eventually) add distance sensors at front and rear of body
-- Add friction to joints
+- Add friction and reflected inertia to joints
 
 # Ideas:
 - Warm start policy with data from joystick control?
