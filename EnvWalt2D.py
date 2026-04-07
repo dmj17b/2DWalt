@@ -40,6 +40,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
 
         model_spec = GenModel.GenModel()  # Create an instance of the model generator
         model_spec.add_scene()  # Add the scene to the model
+        model_spec.add_hfield()  # Add a heightfield to the model for testing
         
         # Load configurations
         self.config = config  # Store the configuration
@@ -58,10 +59,14 @@ class EnvWalt2D(mjx_env.MjxEnv):
         self.knee_action_scale = 1.5  # Scaling factor for knee joint actions
         self.wheel_action_scale = 15.0  # Scaling factor for wheel joint actions
 
+        # Termination condition parameters:
+        self.max_body_pitch = 1.5  # Maximum allowed body pitch angle (in radians) before episode termination
+
         self._mj_model = model_spec.spec.compile()  # Compile the model and store it
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # Convert to JAX-compatible model
 
         self.default_ctrl = jp.zeros(self.mjx_model.nu)  # Default control inputs
+    
 
         # Define joint indices:
         self.x_slide_jid = self._mj_model.joint("x_slide").id
@@ -100,11 +105,14 @@ class EnvWalt2D(mjx_env.MjxEnv):
         self.r_wheel1_act_addr = self._mj_model.actuator("rear_wheel1_act").id
         self.r_wheel2_act_addr = self._mj_model.actuator("rear_wheel2_act").id
 
+        # Define sensor addresses:
+        self.body_vel_sensor_addr = self._mj_model.sensor("body_lin_vel").id
+
     # Resets the environment to an initial state.
     def reset(self, rng: jax.Array) -> mjx_env.State:
         """Resets the environment to an initial state."""
-        rng, command_rng = jax.random.split(rng)
-        qpos = self._reset_model_pos()  # Reset the model's position
+        rng, pos_rng, command_rng = jax.random.split(rng, 3)
+        qpos = self._reset_model_pos(pos_rng)  # Reset the model's position
         qvel = jp.zeros(self.mjx_model.nv)  # Initialize velocities to zero
 
         data = mjx_env.make_data(
@@ -120,7 +128,6 @@ class EnvWalt2D(mjx_env.MjxEnv):
             "reward/vel_tracking": jp.zeros(()),
             "reward/body_z_vel": jp.zeros(()),
             "reward/body_pitch_vel": jp.zeros(()),
-            "reward/height_penalty": jp.zeros(()),
             "reward/action_smoothing": jp.zeros(()),
             "train/episode_reward": jp.zeros(()),
             "train/episode_reward_err": jp.zeros(()),
@@ -179,7 +186,10 @@ class EnvWalt2D(mjx_env.MjxEnv):
         new_info = self._maybe_update_cmd(state.info)  # Maybe update the command and reset the counter if needed
         new_info["prev_action"] = action  # Update the previous action in the info dictionary for use in the next step
 
-        done = jp.float32(0)    # No terminal state
+        # End episode if body pitch exceeds a certain threshold (encourages the robot to stay upright):
+        done = jp.where(jp.abs(data.qpos[self.y_rot_qpos_addr]) > self.max_body_pitch, 1.0, 0.0)  # Check if body pitch exceeds threshold and set done flag accordingly
+        done_penalty = -self.reward_config.terminal_pitch * done  # Apply a penalty to the reward if the episode is done due to excessive body pitch
+        reward = reward + done_penalty  # Combine the step reward with the done penalty
 
         
         return mjx_env.State(data, obs, reward, done, state.metrics, new_info)
@@ -192,8 +202,8 @@ class EnvWalt2D(mjx_env.MjxEnv):
                     metrics: dict[str, Any],
     ) -> jax.Array:
         # Reward for tracking the commanded velocity:
-        fwd_vel = data.qvel[0]  # Get the forward velocity
-        vel_tracking_reward = self.tracking_reward(info["command"], fwd_vel, sigma=0.2)*self.reward_config.vel_tracking 
+        body_frame_x_vel = data.sensordata[0]
+        vel_tracking_reward = self.tracking_reward(info["command"], body_frame_x_vel, sigma=0.2)*self.reward_config.vel_tracking 
 
 
         # Penalty for deviating too far from zero body pitch:
@@ -207,7 +217,7 @@ class EnvWalt2D(mjx_env.MjxEnv):
         body_pitch_vel_penalty = -self.reward_config.body_pitch_vel*jp.square(body_pitch_vel)  # Quadratic penalty for body pitch velocity, scaled by reward_config
 
         # Penalty for body z-velocity change (encourages maintaining consistent height):
-        z_vel = data.qvel[self.z_slide_qpos_addr]  # Get the vertical velocity
+        z_vel = data.sensordata[2]  # Get the vertical velocity in body frame
         z_vel_penalty = -self.reward_config.body_z_vel*jp.square(z_vel)  # Quadratic penalty for vertical velocity, scaled by reward_config
 
         # Penalty for body height dropping below a specified value (encourages maintaining height):
@@ -232,7 +242,6 @@ class EnvWalt2D(mjx_env.MjxEnv):
         metrics["reward/low_torques"] = low_torques_reward
         metrics["reward/vel_tracking"] = vel_tracking_reward
         metrics["reward/body_z_vel"] = z_vel_penalty
-        metrics["reward/height_penalty"] = height_penalty
         metrics["reward/action_smoothing"] = action_smoothing
         metrics["train/episode_reward"] = episode_reward
 
@@ -247,9 +256,15 @@ class EnvWalt2D(mjx_env.MjxEnv):
         return jp.exp(-error / sigma)
 
 
-    def _reset_model_pos(self) -> jax.Array:
+    def _reset_model_pos(self, rng) -> jax.Array:
         """Resets the model to an initial state."""
         qpos = jp.zeros(self.mjx_model.nq)
+        x_pos = jax.random.uniform(rng, minval=-10, maxval=10)  # Randomiz x position on height field
+        qpos = qpos.at[self.x_slide_qpos_addr].set(x_pos)  # Set the x position in the qpos array
+        
+        # Choose z position based on x position to roughly place the robot on the heightfield surface:
+        hf_data = self._mj_model.hfield_data  # Get the heightfield data from the model
+
         return qpos
     
 

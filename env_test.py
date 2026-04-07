@@ -80,14 +80,16 @@ def main():
 
 
 
+
+
             state = step_fn(state, action)  # Step the environment
 
-            # Print command info for debugging
-            print(f"Commanded Velocity: {state.info['command']:.3f}")
-            print(f"Steps since command change: {state.info['steps_since_cmd_change']}")
-            print(f"Steps until command change: {state.info['steps_until_cmd_change']}\n")
-
             n_steps += 1
+
+            # if n_steps > 500:
+            #     key, subkey = jax.random.split(key)
+            #     state = reset_fn(subkey)  # Reset the environment after 500 steps for testing purposes
+            #     n_steps = 0
 
             elapsed = time.time()-start_time
             if elapsed < dt:

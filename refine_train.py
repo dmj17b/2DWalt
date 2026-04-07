@@ -19,9 +19,9 @@ import EnvWalt2D
     
 def main():
 
-    resume_path = "walter_ppo3"  # Path to the saved PPO model parameters to resume training from
+    resume_path = "walter_ppo8_hf"  # Path to the saved PPO model parameters to resume training from
     resume_params = model.load_params(resume_path)
-    save_path = "walter_ppo4"  # Path to save the new PPO model parameters after training
+    save_path = "walter_ppo8_hf"  # Path to save the new PPO model parameters after training
 
     env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
     env_cfg = env.config  # Retrieve the environment configuration
@@ -29,14 +29,14 @@ def main():
         'action_repeat': 1,
         'batch_size': 2048,
         'discounting': 0.995,
-        'entropy_cost': 0.0001,
+        'entropy_cost': 0.00001,
         'episode_length': env_cfg.episode_length,
-        'learning_rate': 5e-5,
+        'learning_rate': 1e-4,
         'num_envs': 4096,
-        'num_evals': 10,  
+        'num_evals': 20,  
         'num_minibatches': 64,
-        'num_updates_per_batch': 8,
-        'num_timesteps': 10_000_000,  
+        'num_updates_per_batch': 4,
+        'num_timesteps': 100_000_000,  
         'normalize_observations': True,
         'reward_scaling': 1.0,
         'unroll_length': 64,
@@ -71,7 +71,6 @@ def main():
         print(f"Body pitch penalty: {metrics.get('eval/episode_reward/body_pitch', 0.0):.4f}")
         print(f"Body pitch velocity penalty: {metrics.get('eval/episode_reward/body_pitch_vel', 0.0):.4f}")
         print(f"Body z velocity penalty: {metrics.get('eval/episode_reward/body_z_vel', 0.0):.4f}")
-        print(f"Height penalty: {metrics.get('eval/episode_reward/height_penalty', 0.0):.4f}")
         print(f"Torque Penalty: {metrics.get('eval/episode_reward/low_torques', 0.0):.6f}")
         print(f"Action smoothing penalty: {metrics.get('eval/episode_reward/action_smoothing', 0.0):.6f}")
         print(f"Total reward: {metrics.get('eval/episode_reward', 0.0):.4f}")

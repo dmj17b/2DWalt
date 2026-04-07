@@ -19,7 +19,7 @@ import pygame
 print(jax.devices())
 
 def main():
-    model_path = "walter_ppo3_hi_LR"  # Path to the saved PPO model parameters
+    model_path = "walter_ppo8_hf"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()
@@ -95,6 +95,11 @@ def main():
             # Sample a random action (for testing purposes) every 5 sim steps:
             if n_steps % 5 == 0:
                 action = jit_inference_fn(state.obs, key)  # Get action from the PPO policy
+
+            # If "done" - reset
+            if state.done:
+                key, subkey = jax.random.split(key)
+                state = reset_fn(subkey)
 
 
             state = step_fn(state, action[0])  # Step the environment

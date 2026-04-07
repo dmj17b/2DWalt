@@ -82,6 +82,11 @@ class GenModel:
             name = 'y_rot'
         )
 
+        torso_body.add_site(
+            name = 'torso_center',
+            pos = [0, 0, 0]
+        )
+
         ''' Assembling the front leg '''
         # Create front thigh
         front_thigh = torso_body.add_body(
@@ -285,6 +290,10 @@ class GenModel:
             motor_params['wheel_kp'],
         )
 
+        body_vel_sensor = self.add_velocity_sensor('torso_center')
+
+     
+
     # Helper function to add position actuator 
     def add_position_actuator(self, joint_name, kp, kd):
         act = self.spec.add_actuator(
@@ -315,7 +324,32 @@ class GenModel:
         act.biasprm[0:3] = [0.0, 0.0, -kv]
         return act
     
+    def add_velocity_sensor(self, site_name):
+        sensor = self.spec.add_sensor(
+            name = 'body_lin_vel',
+            type = mujoco.mjtSensor.mjSENS_VELOCIMETER,
+            objname = site_name,
+            objtype = mujoco.mjtObj.mjOBJ_SITE,
+        )
+        return sensor
+    
     def add_scene(self):
+        # Create skybox so background isn't just black
+        self.spec.add_texture(type = mujoco.mjtTexture.mjTEXTURE_SKYBOX,
+                              builtin = mujoco.mjtBuiltin.mjBUILTIN_GRADIENT,
+                                width = 300,
+                                height = 300,
+                                name="skybox")
+        # Add an array of lights to the scene:
+        for i in range(5):
+            for j in range(5):
+                self.spec.worldbody.add_light(
+                    pos=[2*i, 2*j, 15],
+                    dir=[0, 0, -1],
+                    diffuse=[0.1, 0.1, 0.1],
+                    specular=[0., 0., 0.],
+                )
+    def add_groundplane(self):
         # Create ground plane texture/material
         ground = self.spec.add_texture(type = mujoco.mjtTexture.mjTEXTURE_2D,
                               name="ground_texture",
@@ -338,23 +372,61 @@ class GenModel:
         )
 
 
-        # Create skybox so background isn't just black
-        self.spec.add_texture(type = mujoco.mjtTexture.mjTEXTURE_SKYBOX,
-                              builtin = mujoco.mjtBuiltin.mjBUILTIN_GRADIENT,
-                                width = 300,
-                                height = 300,
-                                name="skybox")
-        # Add an array of lights to the scene:
-        for i in range(5):
-            for j in range(5):
-                self.spec.worldbody.add_light(
-                    pos=[2*i, 2*j, 15],
-                    dir=[0, 0, -1],
-                    diffuse=[0.1, 0.1, 0.1],
-                    specular=[0., 0., 0.],
-                )
-    
-    
+    def add_hfield(self):
+        from scipy.ndimage import gaussian_filter
+        ground = self.spec.add_texture(type = mujoco.mjtTexture.mjTEXTURE_2D,
+                        name="ground_texture",
+                        builtin=mujoco.mjtBuiltin.mjBUILTIN_CHECKER, 
+                        width=200, 
+                        height=200, 
+                        rgb1=[0.5, 0.8, 0.9], 
+                        rgb2=[0.5, 0.9, 0.8],
+                        markrgb=[0.8, 0.8, 0.8])
+        self.spec.add_material(name="groundplanematerial",
+                              texrepeat=[2, 2],
+                              reflectance=0., 
+                              ).textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = 'ground_texture'
+        
+        # Add a heightfield to the environment for testing using perlin noise:
+        nrow, ncol = 64, 64
+        size = [20.0, 20.0, 1.0, 0.5]  # [x_span, y_span, z_height, base_offset]
+        rng = np.random.default_rng(seed=42)
+        heightfield_data = rng.uniform(0, 0.25, size=(nrow, ncol)) 
+        heightfield_data = gaussian_filter(heightfield_data, sigma=0.6)  # Smooth the heightfield with a Gaussian filter
+        hfdata_flat = heightfield_data.flatten()
+
+        self.spec.add_hfield(
+            name='terrain',
+            nrow=nrow,
+            ncol=ncol,
+            size=size,
+            userdata=hfdata_flat,
+        )
+        ground = self.spec.add_texture(
+            type=mujoco.mjtTexture.mjTEXTURE_2D,
+            name="hfield_texture",
+            builtin=mujoco.mjtBuiltin.mjBUILTIN_CHECKER,
+            width=200,
+            height=200,
+            rgb1=[0.5, 0.8, 0.9],
+            rgb2=[0.5, 0.9, 0.8],
+            markrgb=[0.8, 0.8, 0.8]
+        )
+
+        # Add material for heightfield
+        self.spec.add_material(
+            name="hfield_material",
+            texrepeat=[5, 5],
+            reflectance=0.0,
+        ).textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = 'hfield_texture'
+        self.spec.worldbody.add_geom(
+            name='groundplane',
+            type=mujoco.mjtGeom.mjGEOM_HFIELD,
+            hfieldname='terrain',
+            pos=[0, 0, -0.75],
+            material='hfield_material',
+        )                
+
 
     def compile_mj_model(self):
         self.model = self.spec.compile()
@@ -370,8 +442,8 @@ class GenModel:
 def main():
     walt = GenModel()
     walt.add_scene()
+    walt.add_hfield()
     walt.compile_to_xml('2DWalt.xml')
-    model = walt.compile_mj_model()
     
 
 if __name__ == "__main__":
