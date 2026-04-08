@@ -23,7 +23,7 @@ def default_config() -> config_dict.ConfigDict:
     return config_dict.create(
         ctrl_dt = 0.01,
         sim_dt = 0.002,
-        episode_length = 1000,
+        episode_length = 2000,
         action_repeat = 1,
         impl = 'jax',
     )
@@ -38,12 +38,15 @@ class EnvWalt2D(mjx_env.MjxEnv):
             config_overrides: Optional[Dict[str, Union[str,int,list[any]]]] = None,
             reward_config: RewardConfig = RewardConfig(),
             command_config: CommandConfig = CommandConfig(),
+            use_heightfield: bool = True,
     ):
         super().__init__(config, config_overrides = config_overrides) # Initialize the base class with config
 
         model_spec = GenModel.GenModel()  # Create an instance of the model generator
         model_spec.add_scene()  # Add the scene to the model
-        model_spec.add_hfield()  # Add a heightfield to the model for testing
+        self.use_heightfield = use_heightfield  # Store whether to use a heightfield in the environment
+        if use_heightfield:
+            model_spec.add_hfield()  # Add a heightfield to the model for testing
         
         # Load configurations
         self.config = config  # Store the configuration
@@ -111,6 +114,12 @@ class EnvWalt2D(mjx_env.MjxEnv):
         # Define sensor addresses:
         self.body_vel_sensor_addr = self._mj_model.sensor("body_lin_vel").id
 
+        # Define heightfield addresses (if using heightfield):
+        if self.use_heightfield:
+            self.hfield_body_id = self._mj_model.body("terrain_body").id
+            self.hfield_mocap_id = self._mj_model.body_mocapid[self.hfield_body_id]
+
+
     # Resets the environment to an initial state.
     def reset(self, rng: jax.Array) -> mjx_env.State:
         """Resets the environment to an initial state."""
@@ -118,11 +127,21 @@ class EnvWalt2D(mjx_env.MjxEnv):
         qpos = self._reset_model_pos(pos_rng)  # Reset the model's position
         qvel = jp.zeros(self.mjx_model.nv)  # Initialize velocities to zero
 
+                # If using heightfield, randomize y position of heightfield
+        if self.use_heightfield:
+            rng, terrain_rng = jax.random.split(rng)
+            terrain_y_pos = jax.random.uniform(terrain_rng, minval=-15.0, maxval=15.0)  # Randomize y position of heightfield
+            
+
         data = mjx_env.make_data(
             self.mjx_model,
             qpos=qpos,
             qvel=qvel,
+            mocap_pos = jp.array([0.0, terrain_y_pos, 0.0]) if self.use_heightfield else None,  # Set mocap position to randomize heightfield y position if using heightfield
         )
+
+
+
 
         metrics = {
             "reward/task": jp.zeros(()),

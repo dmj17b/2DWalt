@@ -1,3 +1,6 @@
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 import jax
 import jax.numpy as jp
 import mujoco as mj
@@ -19,9 +22,9 @@ import environment.EnvWalt2D as EnvWalt2D
     
 def main():
 
-    resume_path = "walter_ppo8_hf"  # Path to the saved PPO model parameters to resume training from
+    resume_path = "policies/walter_ppo9_hf"  # Path to the saved PPO model parameters to resume training from
     resume_params = model.load_params(resume_path)
-    save_path = "walter_ppo9_hf"  # Path to save the new PPO model parameters after training
+    save_path = "policies/walter_ppo10_hf"  # Path to save the new PPO model parameters after training
 
     env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
     env_cfg = env.config  # Retrieve the environment configuration

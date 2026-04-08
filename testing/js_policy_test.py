@@ -21,7 +21,7 @@ import pygame
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo9_hf"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo10_hf"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()

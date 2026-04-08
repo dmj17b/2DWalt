@@ -420,7 +420,11 @@ class GenModel:
             texrepeat=[5, 5],
             reflectance=0.0,
         ).textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = 'hfield_texture'
-        self.spec.worldbody.add_geom(
+        terrain_body = self.spec.worldbody.add_body(
+            name='terrain_body', 
+            pos=[0, 0, 0],
+            mocap = True,)
+        terrain_body.add_geom(
             name='groundplane',
             type=mujoco.mjtGeom.mjGEOM_HFIELD,
             hfieldname='terrain',
