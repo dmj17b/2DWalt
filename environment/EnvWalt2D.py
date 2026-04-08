@@ -1,3 +1,6 @@
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 from typing import Any, Dict, Optional, Union  # Import type hints for function signatures.
 import warnings  # Import warnings module (not used in this snippet).
 
@@ -11,9 +14,9 @@ import numpy as np  # Import numpy (not used in this snippet).
 from mujoco_playground._src import mjx_env  # Import custom environment base class.
 from mujoco_playground._src import reward  # Import reward utilities (not used in this snippet).
 from mujoco_playground._src.dm_control_suite import common  # Import common utilities for dm_control_suite.
-from env_config import (EnvConfig, RewardConfig, CommandConfig)  # Import environment and reward configuration dataclasses.
+from configs.env_config import (EnvConfig, RewardConfig, CommandConfig)  # Import environment and reward configuration dataclasses.
 
-import GenModel
+import modeling.GenModel as GenModel
 
 def default_config() -> config_dict.ConfigDict:
     """Returns the default configuration for the EnvWalt2D environment."""

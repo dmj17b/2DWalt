@@ -1,6 +1,9 @@
 import jax
 import jax.numpy as jp
 import flax.struct
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 
 @flax.struct.dataclass
 class RewardConfig:

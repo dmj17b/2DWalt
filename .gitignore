@@ -31,7 +31,6 @@ wandbkey.txt
 cuda-keyring_1.0-1_all.deb
 walt2d_ppo.mp4
 wandbkey.txt
-# Ignore wandb folder
 wandb/
 
 # PyInstaller

@@ -1,6 +1,8 @@
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
-import EnvWalt2D
+import environment.EnvWalt2D as EnvWalt2D
 import mujoco
 import mujoco.viewer
 from typing import Optional, Dict, Union
@@ -13,20 +15,10 @@ from brax.training.agents.ppo import networks as ppo_networks
 from brax.training.agents.ppo import networks_vision as ppo_networks_vision
 from brax.training.agents.ppo import train as ppo
 from brax.training.acme import running_statistics
-from pygame import joystick
-import pygame
-
 print(jax.devices())
 
 def main():
-    model_path = "walter_ppo8_hf"  # Path to the saved PPO model parameters
-
-    # Initialize joystick
-    joystick.init()
-    js = joystick.Joystick(0)  # Initialize the first joystick
-    js.init()
-    pygame.init()
-    
+    model_path = "walter_ppo2"  # Path to the saved PPO model parameters
 
     # Initialize the environment
     env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
@@ -39,6 +31,7 @@ def main():
     # Reset the environment to get initial state
     key, subkey = jax.random.split(key)
     state = reset_fn(subkey)
+    print(f"Commanded Velocity: {state.info['command']:.3f}")
 
     # Create standard CPU mj_data
     mj_data = mujoco.MjData(env._mj_model)
@@ -71,15 +64,6 @@ def main():
 
             viewer.sync()  # Sync the viewer to update the visualization
 
-            # Get velocity command from joystick input (for testing purposes)
-            pygame.event.pump()  # Process event queue to update joystick state
-            joystick_state = js.get_axis(1)  # Get the vertical axis of the first joystick
-            velocity_command = -joystick_state * env.max_vel_command  # Scale and invert the command
-            print(velocity_command)
-            info = dict(state.info)
-            info['command'] = jp.asarray(velocity_command)
-            state = state.replace(info=info)  # Update the state info with the new command
-
             # Update the MJX state with any changes from viewer interactions (e.g., user dragging the model)
             state = state.replace(
                 data=state.data.replace(
@@ -91,19 +75,22 @@ def main():
                 )
             )
 
+            # Print rewards for debugging
 
             # Sample a random action (for testing purposes) every 5 sim steps:
             if n_steps % 5 == 0:
                 action = jit_inference_fn(state.obs, key)  # Get action from the PPO policy
 
-            # If "done" - reset
-            if state.done:
-                key, subkey = jax.random.split(key)
-                state = reset_fn(subkey)
-
 
             state = step_fn(state, action[0])  # Step the environment
             n_steps += 1
+
+            if n_steps > 500:
+                print("Episode length reached. Resetting environment.")
+                key, subkey = jax.random.split(key)
+                state = reset_fn(subkey)
+                print(f"New Velocity Command: {state.info['command']:.3f}\n")
+                n_steps = 0
 
             elapsed = time.time()-start_time
             if elapsed < dt:

@@ -1,4 +1,7 @@
-import EnvWalt2D
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
+import environment.EnvWalt2D as EnvWalt2D
 from datetime import datetime
 from brax.mjx.base import State as MjxState
 from brax.training.agents.ppo import networks as ppo_networks
@@ -58,7 +61,6 @@ def progress(num_steps, metrics):
     print(f"Body pitch penalty: {metrics.get('eval/episode_reward/body_pitch', 0.0):.4f}")
     print(f"Body pitch velocity penalty: {metrics.get('eval/episode_reward/body_pitch_vel', 0.0):.4f}")
     print(f"Body z velocity penalty: {metrics.get('eval/episode_reward/body_z_vel', 0.0):.4f}")
-    print(f"Height penalty: {metrics.get('eval/episode_reward/height_penalty', 0.0):.4f}")
     print(f"Torque Penalty: {metrics.get('eval/episode_reward/low_torques', 0.0):.6f}")
     print(f"Action smoothing penalty: {metrics.get('eval/episode_reward/action_smoothing', 0.0):.6f}")
     print(f"Total reward: {metrics.get('eval/episode_reward', 0.0):.4f}")

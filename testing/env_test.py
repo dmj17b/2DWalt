@@ -1,6 +1,8 @@
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
-import EnvWalt2D
+import environment.EnvWalt2D as EnvWalt2D
 import mujoco
 import mujoco.viewer
 from typing import Optional, Dict, Union

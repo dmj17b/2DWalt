@@ -14,14 +14,14 @@ import inspect
 from pathlib import Path
 import wandb
 
-import EnvWalt2D
+import environment.EnvWalt2D as EnvWalt2D
 
     
 def main():
 
     resume_path = "walter_ppo8_hf"  # Path to the saved PPO model parameters to resume training from
     resume_params = model.load_params(resume_path)
-    save_path = "walter_ppo8_hf"  # Path to save the new PPO model parameters after training
+    save_path = "walter_ppo9_hf"  # Path to save the new PPO model parameters after training
 
     env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
     env_cfg = env.config  # Retrieve the environment configuration
@@ -31,15 +31,15 @@ def main():
         'discounting': 0.995,
         'entropy_cost': 0.00001,
         'episode_length': env_cfg.episode_length,
-        'learning_rate': 1e-4,
+        'learning_rate': 1e-5,
         'num_envs': 4096,
-        'num_evals': 20,  
+        'num_evals': 10,  
         'num_minibatches': 64,
         'num_updates_per_batch': 4,
-        'num_timesteps': 100_000_000,  
+        'num_timesteps': 50_000_000,  
         'normalize_observations': True,
         'reward_scaling': 1.0,
-        'unroll_length': 64,
+        'unroll_length': 32,
         }
 
     #---------- WandB logging setup ------------#
