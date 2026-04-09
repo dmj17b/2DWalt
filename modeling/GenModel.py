@@ -2,6 +2,8 @@ import mujoco
 import numpy as np
 import os
 import sys
+import jax
+import jax.numpy as jp
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 
 # Class for generating a 2D WaLTER model programatically
@@ -342,10 +344,10 @@ class GenModel:
                                 height = 300,
                                 name="skybox")
         # Add an array of lights to the scene:
-        for i in range(5):
-            for j in range(5):
+        for i in range(15):
+            for j in range(15):
                 self.spec.worldbody.add_light(
-                    pos=[2*i, 2*j, 15],
+                    pos=[3*i, 3*j, 25],
                     dir=[0, 0, -1],
                     diffuse=[0.1, 0.1, 0.1],
                     specular=[0., 0., 0.],
@@ -430,7 +432,26 @@ class GenModel:
             hfieldname='terrain',
             pos=[0, 0, -0.75],
             material='hfield_material',
-        )                
+        ) 
+    
+    def add_box_obstacles(self, 
+                          n_boxes: int = 10, 
+                          x_range: float = 20.0,
+                          ):
+        x = np.linspace(-x_range, x_range, n_boxes)
+        for i in range(n_boxes):
+            box = self.spec.worldbody.add_body(
+                name=f'box_{i}',
+                pos=[x[i], 0.0, np.random.uniform(0.1, 0.5)],
+                mocap = True,
+            )
+            box.add_geom(
+                type=mujoco.mjtGeom.mjGEOM_BOX,
+                size=[np.random.uniform(0.1, 0.5), 20, 0.2],
+                rgba=[0.8, 0.8, 0.8, 1],
+                contype=2,
+                conaffinity=1,
+            )
 
 
     def compile_mj_model(self):

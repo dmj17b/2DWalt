@@ -24,7 +24,7 @@ def main():
     hip_delta = 0.05  # Increment for hip position command when D-pad is pressed
 
     # Initialize the environment
-    env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
+    env = EnvWalt2D.EnvWalt2D(use_heightfield=False)  # Create an instance of the EnvWalt2D environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions
@@ -88,10 +88,10 @@ def main():
 
             n_steps += 1
 
-            # if n_steps > 500:
-            #     key, subkey = jax.random.split(key)
-            #     state = reset_fn(subkey)  # Reset the environment after 500 steps for testing purposes
-            #     n_steps = 0
+            if n_steps > 2000:
+                key, subkey = jax.random.split(key)
+                state = reset_fn(subkey)  # Reset the environment after 2000 steps for testing purposes
+                n_steps = 0
 
             elapsed = time.time()-start_time
             if elapsed < dt:

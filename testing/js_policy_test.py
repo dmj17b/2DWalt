@@ -76,8 +76,11 @@ def main():
             # Get velocity command from joystick input (for testing purposes)
             pygame.event.pump()  # Process event queue to update joystick state
             joystick_state = js.get_axis(1)  # Get the vertical axis of the first joystick
+            reset_button = js.get_button(0)
+            if reset_button:
+                key, subkey = jax.random.split(key)
+                state = reset_fn(subkey)  # Reset the environment if the reset button is pressed
             velocity_command = -joystick_state * env.max_vel_command  # Scale and invert the command
-            print(velocity_command)
             info = dict(state.info)
             info['command'] = jp.asarray(velocity_command)
             state = state.replace(info=info)  # Update the state info with the new command

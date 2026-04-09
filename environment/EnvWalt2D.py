@@ -45,8 +45,10 @@ class EnvWalt2D(mjx_env.MjxEnv):
         model_spec = GenModel.GenModel()  # Create an instance of the model generator
         model_spec.add_scene()  # Add the scene to the model
         self.use_heightfield = use_heightfield  # Store whether to use a heightfield in the environment
-        if use_heightfield:
-            model_spec.add_hfield()  # Add a heightfield to the model for testing
+        if self.use_heightfield:
+            model_spec.add_hfield()  # Add a heightfield to the model if specified
+        else:
+            model_spec.add_groundplane()  # Add a flat terrain if not using a heightfield
         
         # Load configurations
         self.config = config  # Store the configuration
@@ -131,14 +133,18 @@ class EnvWalt2D(mjx_env.MjxEnv):
         if self.use_heightfield:
             rng, terrain_rng = jax.random.split(rng)
             terrain_y_pos = jax.random.uniform(terrain_rng, minval=-15.0, maxval=15.0)  # Randomize y position of heightfield
-            
-
-        data = mjx_env.make_data(
-            self.mjx_model,
-            qpos=qpos,
-            qvel=qvel,
-            mocap_pos = jp.array([0.0, terrain_y_pos, 0.0]) if self.use_heightfield else None,  # Set mocap position to randomize heightfield y position if using heightfield
-        )
+            data = mjx_env.make_data(
+                self.mjx_model,
+                qpos=qpos,
+                qvel=qvel,
+                mocap_pos = jp.array([0.0, terrain_y_pos, 0.0]),  # Set mocap position to randomize heightfield y position
+            )
+        else:
+            data = mjx_env.make_data(
+                self.mjx_model,
+                qpos=qpos,
+                qvel=qvel,
+            )
 
 
 
