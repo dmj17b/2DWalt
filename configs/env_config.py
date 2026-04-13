@@ -25,11 +25,9 @@ class CommandConfig:
 
 
 @flax.struct.dataclass
-class EnvConfig:
-    reward_config: RewardConfig = RewardConfig()
+class SimConfig:
     action_repeat: int = 1
     impl: str = 'jax'
-    action_scale: float = 0.5
     ctrl_dt = 0.01
     sim_dt = 0.002
 
