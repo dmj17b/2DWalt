@@ -13,19 +13,9 @@ from mujoco import mjx  # Import mjx, a JAX-based Mujoco wrapper.
 from mujoco_playground._src import mjx_env  # Import custom environment base class.
 from mujoco_playground._src import reward  # Import reward utilities (not used in this snippet).
 from mujoco_playground._src.dm_control_suite import common  # Import common utilities for dm_control_suite.
-from configs.env_config import (EnvConfig, RewardConfig, CommandConfig)  # Import environment and reward configuration dataclasses.
+from configs.env_config import (SimConfig, RewardConfig, CommandConfig)  # Import environment and reward configuration dataclasses.
 
 import modeling.GenModel as GenModel
-
-def default_config() -> config_dict.ConfigDict:
-    """Returns the default configuration for the BaseEnv environment."""
-    return config_dict.create(
-        ctrl_dt = 0.01,
-        sim_dt = 0.002,
-        episode_length = 2000,
-        action_repeat = 1,
-        impl = 'jax',
-    )
 
 
 
@@ -33,23 +23,19 @@ class BaseEnv(mjx_env.MjxEnv):
     
     def __init__(
             self,
-            sim_config: Optional[config_dict.ConfigDict] = None,
+            sim_config: SimConfig = SimConfig(),
             reward_config: RewardConfig = RewardConfig(),
             command_config: CommandConfig = CommandConfig(),
-            use_heightfield: bool = True,
     ):
         super().__init__(config = sim_config) # Initialize the base class with config
 
-        model_spec = GenModel.GenModel()  # Create an instance of the model generator
-        model_spec.add_scene()  # Add the scene to the model
-        self.use_heightfield = use_heightfield  # Store whether to use a heightfield in the environment
-        if self.use_heightfield:
-            model_spec.add_hfield()  # Add a heightfield to the model if specified
-        else:
-            model_spec.add_groundplane()  # Add a flat terrain if not using a heightfield
-        
+        # Generate the model to be used in the environment:
+        self.model_spec = GenModel.GenModel()  # Create an instance of the model generator
+        self.model_spec.add_scene()  # Add the scene to the model
+        self._add_terrain()  # Add terrain to the model based on the specified type in the configuration
+
         # Load configurations
-        self.config = config  # Store the configuration
+        self.config = sim_config  # Store the configuration
         self.reward_config = reward_config  # Store the reward configuration
         self.command_config = command_config  # Store the command configuration
 
@@ -68,7 +54,7 @@ class BaseEnv(mjx_env.MjxEnv):
         # Termination condition parameters:
         self.max_body_pitch = 1.5  # Maximum allowed body pitch angle (in radians) before episode termination
 
-        self._mj_model = model_spec.spec.compile()  # Compile the model and store it
+        self._mj_model = self.model_spec.spec.compile()  # Compile the model and store it
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # Convert to JAX-compatible model
 
         self.default_ctrl = jp.zeros(self.mjx_model.nu)  # Default control inputs
@@ -80,29 +66,15 @@ class BaseEnv(mjx_env.MjxEnv):
     # Resets the environment to an initial state.
     def reset(self, rng: jax.Array) -> mjx_env.State:
         """Resets the environment to an initial state."""
-        rng, pos_rng, command_rng = jax.random.split(rng, 3)
+        rng, pos_rng, vel_rng, command_rng = jax.random.split(rng, 4)
         qpos = self._reset_model_pos(pos_rng)  # Reset the model's position
-        qvel = jp.zeros(self.mjx_model.nv)  # Initialize velocities to zero
+        qvel = self._reset_model_vel(vel_rng)  # Reset the model's velocities
 
-                # If using heightfield, randomize y position of heightfield
-        if self.use_heightfield:
-            rng, terrain_rng = jax.random.split(rng)
-            terrain_y_pos = jax.random.uniform(terrain_rng, minval=-15.0, maxval=15.0)  # Randomize y position of heightfield
-            data = mjx_env.make_data(
-                self.mjx_model,
-                qpos=qpos,
-                qvel=qvel,
-                mocap_pos = jp.array([0.0, terrain_y_pos, 0.0]),  # Set mocap position to randomize heightfield y position
-            )
-        else:
-            data = mjx_env.make_data(
-                self.mjx_model,
-                qpos=qpos,
-                qvel=qvel,
-            )
-
-
-
+        data = mjx_env.make_data(
+            self.mjx_model,
+            qpos=qpos,
+            qvel=qvel,
+        )
 
         metrics = {
             "reward/task": jp.zeros(()),
@@ -244,16 +216,14 @@ class BaseEnv(mjx_env.MjxEnv):
 
 
     def _reset_model_pos(self, rng) -> jax.Array:
-        """Resets the model to an initial state."""
+        """Resets the model to an initial state. Base - initialize zero each time."""
         qpos = jp.zeros(self.mjx_model.nq)
-        x_pos = jax.random.uniform(rng, minval=-10, maxval=10)  # Randomiz x position on height field
-        qpos = qpos.at[self.x_slide_qpos_addr].set(x_pos)  # Set the x position in the qpos array
-        
-        # Choose z position based on x position to roughly place the robot on the heightfield surface:
-        hf_data = self._mj_model.hfield_data  # Get the heightfield data from the model
-
         return qpos
     
+    def _reset_model_vel(self, rng) -> jax.Array:
+        """Resets the model velocities to an initial state. Base - initialize zero each time."""
+        qvel = jp.zeros(self.mjx_model.nv)  # Initialize qvel to zeros.
+        return qvel
 
 
     """Returns the observation from the environment as a JAX array."""
@@ -359,6 +329,9 @@ class BaseEnv(mjx_env.MjxEnv):
 
         # Define sensor addresses:
         self.body_vel_sensor_addr = self._mj_model.sensor("body_lin_vel").id
+
+    def _add_terrain(self):
+        raise NotImplementedError("Terrain not defined in base environment. Please implement terrain generation in a subclass based on the desired terrain type (e.g., flat, heightfield, boxes, stairs).")
 
     @property
     def xml_path(self) -> str:

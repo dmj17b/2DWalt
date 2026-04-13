@@ -9,7 +9,6 @@ import jax.numpy as jp  # Import JAX's numpy as jp for array operations.
 from ml_collections import config_dict  # Import config_dict for configuration management.
 import mujoco  # Import mujoco for physics simulation.
 from mujoco import mjx  # Import mjx, a JAX-based Mujoco wrapper.
-import numpy as np  # Import numpy (not used in this snippet).
 
 from mujoco_playground._src import mjx_env  # Import custom environment base class.
 from mujoco_playground._src import reward  # Import reward utilities (not used in this snippet).

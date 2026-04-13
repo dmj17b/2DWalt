@@ -33,7 +33,6 @@ def SimConfig() -> config_dict.ConfigDict:
         impl = 'jax',
     )
 
-
 @flax.struct.dataclass
 class TerrainConfig:
     terrain_type: str = "flat" # Options: "flat", "heightfield", "boxes", "stairs"
