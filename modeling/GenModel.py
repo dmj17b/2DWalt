@@ -437,19 +437,23 @@ class GenModel:
     def add_box_obstacles(self, 
                           n_boxes: int = 10, 
                           x_range: float = 20.0,
+                          width_range: jp.ndarray = jp.array([0.15, 1.0]),
+                          max_height: float = 0.25,
+                          rng: jax.random.PRNGKey = jax.random.PRNGKey(0)
                           ):
-        x = np.linspace(-x_range, x_range, n_boxes)
+        x_pos = jp.linspace(-x_range, x_range, n_boxes)
         for i in range(n_boxes):
+            rng, pos_rng, size_rng = jax.random.split(rng, 3)
             box = self.spec.worldbody.add_body(
                 name=f'box_{i}',
-                pos=[x[i], 0.0, np.random.uniform(0.1, 0.5)],
+                pos=[x_pos[i], 0.0, max_height/2],
                 mocap = True,
             )
             box.add_geom(
                 type=mujoco.mjtGeom.mjGEOM_BOX,
-                size=[np.random.uniform(0.1, 0.5), 20, 0.2],
+                size=[jax.random.uniform(size_rng, minval=width_range[0], maxval=width_range[1]), 20, max_height],
                 rgba=[0.8, 0.8, 0.8, 1],
-                contype=2,
+                contype=1,
                 conaffinity=1,
             )
 

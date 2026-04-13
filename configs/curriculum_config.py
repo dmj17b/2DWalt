@@ -24,15 +24,6 @@ class CommandConfig:
     max_cmd_duration: float = 2.0
     zero_cmd_prob: float = 0.1
 
-def SimConfig() -> config_dict.ConfigDict:
-    return config_dict.create(
-        ctrl_dt = 0.01,
-        sim_dt = 0.002,
-        episode_length = 2000,
-        action_repeat = 1,
-        impl = 'jax',
-    )
-
 @flax.struct.dataclass
 class TerrainConfig:
     terrain_type: str = "flat" # Options: "flat", "heightfield", "boxes", "stairs"

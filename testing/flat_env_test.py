@@ -2,10 +2,9 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
-import environment.flat as FlatEnv  # Import the FlatEnv environment class to test environment creation.
+import environment.FlatEnv as FlatEnv  # Import the FlatEnv environment class to test environment creation.
 import mujoco
 import mujoco.viewer
-from typing import Optional, Dict, Union
 from mujoco import mjx
 import time
 import jax
@@ -88,7 +87,7 @@ def main():
 
             n_steps += 1
 
-            if n_steps > 2000:
+            if n_steps > env.config.episode_length:
                 key, subkey = jax.random.split(key)
                 state = reset_fn(subkey)  # Reset the environment after 2000 steps for testing purposes
                 n_steps = 0
