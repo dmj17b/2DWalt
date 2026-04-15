@@ -27,6 +27,13 @@ class BoxEnv(BaseEnv.BaseEnv):
         super().__init__(sim_config, reward_config, command_config)  # Initialize the base environment with the provided configurations.
         self.mocap_ids = self._get_mocap_ids()  # Get the mocap body IDs for the box obstacles to control their positions during terrain randomization
 
+        base_grid = jp.zeros((self.mjx_model.nmocap, 3))
+        x_positions = jp.linspace(-self.box_x_range, self.box_x_range, self.n_boxes)
+        y_positions = jp.zeros((self.n_boxes,))
+        base_grid = base_grid.at[self.mocap_ids, 0].set(x_positions)
+        base_grid = base_grid.at[self.mocap_ids, 1].set(y_positions)
+        self._base_mocap_pos = base_grid
+
         
 
     def _add_terrain(self):
@@ -62,24 +69,10 @@ class BoxEnv(BaseEnv.BaseEnv):
                                         minval=-self.box_max_height, 
                                         maxval=self.box_max_height/2, 
                                         shape=(self.n_boxes,)) 
-        
-        box_x_positions = jp.linspace(-self.box_x_range, 
-                                    self.box_x_range, 
-                                    self.n_boxes)
-        
-        # Y is always zero, but we need an array of the same shape
-        box_y_positions = jp.zeros((self.n_boxes,))
-        
-        # 2. Stack them together. 
-        # axis=1 turns three (N,) arrays into one (N, 3) matrix.
-        new_box_positions = jp.stack([box_x_positions, box_y_positions, box_heights], axis=1)
-        
-        # 3. Initialize the base mocap array
-        mocap_pos = jp.zeros((self.mjx_model.nmocap, 3))
-        
-        # 4. Vectorized Assignment (No loop needed!)
+
+
         # JAX maps the N rows of new_box_positions directly to the N indices in self.mocap_ids
-        mocap_pos = mocap_pos.at[jp.array(self.mocap_ids)].set(new_box_positions)
+        mocap_pos = self._base_mocap_pos.at[self.mocap_ids, 2].set(box_heights)  # Update the Z coordinate of the mocap positions with the new box heights for terrain randomization
         
         return mocap_pos
 

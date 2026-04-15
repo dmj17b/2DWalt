@@ -17,22 +17,22 @@ import inspect
 from pathlib import Path
 import wandb
 
-import environment.EnvWalt2D as EnvWalt2D
+import environment.BoxEnv as BoxEnv
 
     
 def main():
 
-    resume_path = "policies/walter_ppo9_hf"  # Path to the saved PPO model parameters to resume training from
+    resume_path = "policies/walter_ppo10_hf"  # Path to the saved PPO model parameters to resume training from
     resume_params = model.load_params(resume_path)
-    save_path = "policies/walter_ppo10_hf"  # Path to save the new PPO model parameters after training
+    save_path = "policies/walter_ppo_box1"  # Path to save the new PPO model parameters after training
 
-    env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
+    env = BoxEnv.BoxEnv()  # Create an instance of the BoxEnv environment
     env_cfg = env.config  # Retrieve the environment configuration
     ppo_params = {
         'action_repeat': 1,
         'batch_size': 2048,
         'discounting': 0.995,
-        'entropy_cost': 0.00001,
+        'entropy_cost': 0.001,
         'episode_length': env_cfg.episode_length,
         'learning_rate': 1e-5,
         'num_envs': 4096,
