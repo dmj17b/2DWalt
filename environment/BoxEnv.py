@@ -20,7 +20,7 @@ class BoxEnv(BaseEnv.BaseEnv):
     ):
         # Define box terrain parameters
         self.n_boxes = 15  # Number of box obstacles in the environment
-        self.box_x_range = 20.0  # Range of x positions for box placement
+        self.box_x_range = 30.0  # Range of x positions for box placement
         self.box_width_range = (0.15, 1.0)  # Range of box widths
         self.box_max_height = 0.3  # Maximum height of the boxes to ensure they are small obstacles rather than walls
 
@@ -43,7 +43,7 @@ class BoxEnv(BaseEnv.BaseEnv):
         qpos = jp.zeros(self.mjx_model.nq)  # Initialize qpos to zeros.
         # Possible spawn locations are between the box obstacles, so we can sample from a set of discrete positions that are evenly spaced between the boxes.
         possible_x_positions = jp.linspace(-self.box_x_range, self.box_x_range, self.n_boxes)
-        x_pos = jax.random.choice(rng, possible_x_positions) + (self.box_x_range/self.n_boxes)  # Sample a random x position from the possible positions.
+        x_pos = jax.random.choice(rng, possible_x_positions[3:-3]) + (self.box_x_range/self.n_boxes)  # Sample a random x position from the possible positions.
         qpos = qpos.at[self.z_slide_qpos_addr].set(0.05)  # Set the z position to 0.5 to be above the flat ground.
         qpos = qpos.at[self.x_slide_qpos_addr].set(x_pos)  # Set the x position to the sampled value.
         return qpos

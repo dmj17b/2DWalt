@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
-import environment.BoxEnv as BoxEnv  # Import the BoxEnv environment class to test environment creation.
+import environment.HFieldEnv as HFieldEnv  # Import the HFieldEnv environment class to test environment creation.
 import mujoco
 import mujoco.viewer
 from mujoco import mjx
@@ -23,7 +23,7 @@ def main():
     hip_delta = 0.05  # Increment for hip position command when D-pad is pressed
 
     # Initialize the environment
-    env = BoxEnv.BoxEnv()  # Create an instance of the BoxEnv environment
+    env = HFieldEnv.HFieldEnv()  # Create an instance of the HFieldEnv environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions
@@ -33,7 +33,6 @@ def main():
     # Reset the environment to get initial state
     key, subkey = jax.random.split(key)
     state = reset_fn(subkey)
-    print(f"Commanded Velocity: {state.info['command']:.3f}")
 
     # Create standard CPU mj_data
     mj_data = mujoco.MjData(env._mj_model)

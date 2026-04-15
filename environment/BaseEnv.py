@@ -75,7 +75,7 @@ class BaseEnv(mjx_env.MjxEnv):
             self.mjx_model,
             qpos=qpos,
             qvel=qvel,
-            mocap_pos=mocap_pos if self._mjx_model.nmocap > 0 else None,  # Only include mocap positions if the model has mocap bodies
+            mocap_pos=mocap_pos 
         )
 
         metrics = {
@@ -229,7 +229,7 @@ class BaseEnv(mjx_env.MjxEnv):
     
     def _reset_terrain(self, rng) -> jax.Array:
         """Resets the terrain to an initial state. Base - no terrain, so just return empty array."""
-        return jp.array([])
+        return None
 
 
     """Returns the observation from the environment as a JAX array."""
