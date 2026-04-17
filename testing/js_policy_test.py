@@ -2,7 +2,6 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
-import environment.EnvWalt2D as EnvWalt2D
 import mujoco
 import mujoco.viewer
 from typing import Optional, Dict, Union
@@ -17,11 +16,12 @@ from brax.training.agents.ppo import train as ppo
 from brax.training.acme import running_statistics
 from pygame import joystick
 import pygame
+import environment.BoxEnv as BoxEnv
 
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo10_hf"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo_box1"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()
@@ -31,7 +31,7 @@ def main():
     
 
     # Initialize the environment
-    env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
+    env = BoxEnv.BoxEnv()  # Create an instance of the BoxEnv environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions

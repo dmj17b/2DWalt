@@ -569,7 +569,7 @@ class GenModel:
                 size=[jax.random.uniform(size_rng, minval=width_range[0], maxval=width_range[1]), 5, max_height],
                 rgba=[0.8, 0.8, 0.8, 1],
                 contype=1,
-                conaffinity=1,
+                conaffinity=0,
             )
 
 
