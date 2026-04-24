@@ -370,13 +370,14 @@ class GenModel:
                     specular=[0.1, 0.1, 0.1],
                     intensity=1.0,
                 )
+                
     def add_groundplane(self):
-
         self.spec.worldbody.add_geom(
             type=mujoco.mjtGeom.mjGEOM_PLANE,
             size=[0, 0, 0.05],
             material="groundplane_material",
         )
+
     def add_hfield(self, 
                    height: float = 0.5,
                    sigma: float = 0.6,
@@ -548,6 +549,8 @@ class GenModel:
             pos=[0, 0, -0.75],
             material='hfield_material',
         ) 
+
+
     
     def add_box_obstacles(self, 
                           n_boxes: int = 10, 
