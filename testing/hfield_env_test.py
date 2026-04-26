@@ -23,7 +23,7 @@ def main():
     hip_delta = 0.05  # Increment for hip position command when D-pad is pressed
 
     # Initialize the environment
-    env = HFieldEnv.HFieldEnv()  # Create an instance of the HFieldEnv environment
+    env = HFieldEnv.HFieldEnv(difficulty = 0.1)  # Create an instance of the HFieldEnv environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions

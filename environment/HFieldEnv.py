@@ -17,9 +17,10 @@ class HFieldEnv(BaseEnv.BaseEnv):
             sim_config: SimConfig = SimConfig(),
             reward_config: RewardConfig = RewardConfig(),
             command_config: CommandConfig = CommandConfig(),
+            difficulty: float = 0.0,  # Difficulty parameter to control terrain roughness and obstacle placement.
     ):
         # Define terrain parameters for the heightfield
-    
+        self.difficulty = difficulty  # Difficulty level for terrain generation, can be used to scale height and obstacle placement.
 
         super().__init__(sim_config, reward_config, command_config)  # Initialize the base environment with the provided configurations.
         self.mocap_ids = self._get_mocap_ids()  # Get the mocap body IDs for the box obstacles to control their positions during terrain randomization
@@ -28,7 +29,7 @@ class HFieldEnv(BaseEnv.BaseEnv):
 
     def _add_terrain(self):
         """Add heightfield terrain to the environment"""
-        self.model_spec.add_hfield(height = 1.0,
+        self.model_spec.add_hfield(height = self.difficulty * 0.5 + 0.5,  # Scale height by difficulty to create rougher terrain at higher difficulty levels.
                                    sigma = 0.6) 
 
     def _reset_model_pos(self, rng) -> jax.Array:

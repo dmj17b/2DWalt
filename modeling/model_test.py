@@ -12,7 +12,8 @@ model_spec = GenModel.GenModel()  # Create an instance of the model generator
 model_spec.add_scene()  # Add the scene to the model
 # model_spec.add_hfield()  # Add a heightfield to the model for testing
 # model_spec.add_groundplane()  # Add a ground plane to the model for testing
-model_spec.add_stepped_hfield()
+# model_spec.add_stepped_hfield()
+model_spec.add_box_heightfield()  # Add a box heightfield to the model for testing
 
 mj_model = model_spec.spec.compile()
 mj_data = mujoco.MjData(mj_model)

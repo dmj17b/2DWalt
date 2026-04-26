@@ -17,11 +17,12 @@ from brax.training.acme import running_statistics
 from pygame import joystick
 import pygame
 import environment.BoxEnv as BoxEnv
+import environment.HFieldEnv as HFieldEnv
 
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo_box1"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo3"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()
@@ -32,6 +33,7 @@ def main():
 
     # Initialize the environment
     env = BoxEnv.BoxEnv()  # Create an instance of the BoxEnv environment
+    # env = HFieldEnv.HFieldEnv(difficulty=0.5)  # Create an instance of the BoxEnv environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions

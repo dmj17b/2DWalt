@@ -2,7 +2,6 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
-import environment.EnvWalt2D as EnvWalt2D
 import mujoco
 import mujoco.viewer
 from typing import Optional, Dict, Union
@@ -15,13 +14,15 @@ from brax.training.agents.ppo import networks as ppo_networks
 from brax.training.agents.ppo import networks_vision as ppo_networks_vision
 from brax.training.agents.ppo import train as ppo
 from brax.training.acme import running_statistics
+import environment.BoxEnv as BoxEnv
+import environment.HFieldEnv as HFieldEnv
 print(jax.devices())
 
 def main():
-    model_path = "walter_ppo2"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo3"  # Path to the saved PPO model parameters
 
     # Initialize the environment
-    env = EnvWalt2D.EnvWalt2D()  # Create an instance of the EnvWalt2D environment
+    env = BoxEnv.BoxEnv()  # Create an instance of the BoxEnv environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions
@@ -32,6 +33,7 @@ def main():
     key, subkey = jax.random.split(key)
     state = reset_fn(subkey)
     print(f"Commanded Velocity: {state.info['command']:.3f}")
+    prev_vel_command = state.info['command']
 
     # Create standard CPU mj_data
     mj_data = mujoco.MjData(env._mj_model)
@@ -75,8 +77,11 @@ def main():
                 )
             )
 
-            # Print rewards for debugging
-
+            # If velocity command changes, print the new command:
+            vel_command = state.info['command']
+            if vel_command != prev_vel_command:
+                print(f"New Velocity Command: {vel_command:.3f}")
+                prev_vel_command = vel_command
             # Sample a random action (for testing purposes) every 5 sim steps:
             if n_steps % 5 == 0:
                 action = jit_inference_fn(state.obs, key)  # Get action from the PPO policy
@@ -85,7 +90,7 @@ def main():
             state = step_fn(state, action[0])  # Step the environment
             n_steps += 1
 
-            if n_steps > 500:
+            if n_steps > env.config.episode_length:
                 print("Episode length reached. Resetting environment.")
                 key, subkey = jax.random.split(key)
                 state = reset_fn(subkey)

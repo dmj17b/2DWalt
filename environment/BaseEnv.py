@@ -42,8 +42,8 @@ class BaseEnv(mjx_env.MjxEnv):
         # Command parameters
         self.max_vel_command = self.command_config.max_vel  # Maximum velocity command for the environment
         self.zero_probability = self.command_config.zero_cmd_prob  # Probability of sampling a zero velocity command
-        self.min_steps_per_command = int(self.command_config.min_cmd_duration / self.config.ctrl_dt)  # Minimum number of steps to maintain a command before resampling
-        self.max_steps_per_command = int(self.command_config.max_cmd_duration / self.config.ctrl_dt)  # Maximum number of steps to maintain a command before resampling
+        self.min_steps_per_command = int(self.command_config.min_cmd_duration / self.config.sim_dt)  # Minimum number of steps to maintain a command before resampling
+        self.max_steps_per_command = int(self.command_config.max_cmd_duration / self.config.sim_dt)  # Maximum number of steps to maintain a command before resampling
 
 
         # Action scaling factors for different joints:
@@ -249,11 +249,14 @@ class BaseEnv(mjx_env.MjxEnv):
         f_wheel2_vel = jp.array([data.qvel[self.f_wheel2_qpos_addr]])  # Get the velocity of the front wheel 2
         r_wheel1_vel = jp.array([data.qvel[self.r_wheel1_qpos_addr]])  # Get the velocity of the rear wheel 1
         r_wheel2_vel = jp.array([data.qvel[self.r_wheel2_qpos_addr]])  # Get the velocity of the rear wheel 2
+        # Add joint torques to observation:
+        joint_torques = data.qfrc_actuator[3:]  # Get the actuator torques for all joints
         obs = jp.concatenate([
             vel_command,
             body_pitch,
             f_hip_pos, f_knee_sin, f_knee_cos, f_knee_vel, r_hip_pos, r_knee_sin, r_knee_cos, r_knee_vel,
             f_wheel1_vel, f_wheel2_vel, r_wheel1_vel, r_wheel2_vel,
+            joint_torques,
             prev_action
         ])
         return obs

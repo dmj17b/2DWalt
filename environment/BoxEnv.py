@@ -18,39 +18,18 @@ class BoxEnv(BaseEnv.BaseEnv):
             reward_config: RewardConfig = RewardConfig(),
             command_config: CommandConfig = CommandConfig(),
     ):
-        # Define box terrain parameters
-        self.n_boxes = 15  # Number of box obstacles in the environment
-        self.box_x_range = 30.0  # Range of x positions for box placement
-        self.box_width_range = (0.15, 1.0)  # Range of box widths
-        self.box_max_height = 0.3  # Maximum height of the boxes to ensure they are small obstacles rather than walls
-
         super().__init__(sim_config, reward_config, command_config)  # Initialize the base environment with the provided configurations.
-        self.mocap_ids = self._get_mocap_ids()  # Get the mocap body IDs for the box obstacles to control their positions during terrain randomization
 
-        base_grid = jp.zeros((self.mjx_model.nmocap, 3))
-        x_positions = jp.linspace(-self.box_x_range, self.box_x_range, self.n_boxes)
-        y_positions = jp.zeros((self.n_boxes,))
-        base_grid = base_grid.at[self.mocap_ids, 0].set(x_positions)
-        base_grid = base_grid.at[self.mocap_ids, 1].set(y_positions)
-        self._base_mocap_pos = base_grid
-
-        
 
     def _add_terrain(self):
         """Add box terrain to the environment"""
-        self.model_spec.add_groundplane()  # Add a flat ground plane to the model specification.
-        self.model_spec.add_box_obstacles(n_boxes = self.n_boxes,
-                                          x_range = self.box_x_range,
-                                          width_range = self.box_width_range,
-                                          max_height = self.box_max_height
-                                          )  # Add box obstacles to the environment for testing purposes.
+        # self.model_spec.add_groundplane()  # Add a flat ground plane to the model specification.
+        self.model_spec.add_box_heightfield()  # Add a box heightfield to the model specification for terrain generation.
 
     def _reset_model_pos(self, rng) -> jax.Array:
         """Resets the model to an initial state. Between box obstacles"""
         qpos = jp.zeros(self.mjx_model.nq)  # Initialize qpos to zeros.
-        # Possible spawn locations are between the box obstacles, so we can sample from a set of discrete positions that are evenly spaced between the boxes.
-        possible_x_positions = jp.linspace(-self.box_x_range, self.box_x_range, self.n_boxes)
-        x_pos = jax.random.choice(rng, possible_x_positions[3:-3]) + (self.box_x_range/self.n_boxes)  # Sample a random x position from the possible positions.
+        x_pos = jax.random.uniform(rng, minval=-20.0, maxval=20.0)  # Sample a random x position for the robot within the specified range.
         qpos = qpos.at[self.z_slide_qpos_addr].set(0.05)  # Set the z position to 0.5 to be above the flat ground.
         qpos = qpos.at[self.x_slide_qpos_addr].set(x_pos)  # Set the x position to the sampled value.
         return qpos
@@ -61,29 +40,6 @@ class BoxEnv(BaseEnv.BaseEnv):
         qvel = jax.random.uniform(rng, minval = -max_vel, maxval = max_vel, shape=(self.mjx_model.nv))  # Initialize qvel to small random values to encourage exploration.
         return qvel
     
-    def _reset_terrain(self, rng) -> jax.Array:
-        """ Randomized box positions and heights for terrain randomization. """
-        
-        # 1. Generate the 1D arrays for X, Y, and Z coordinates
-        box_heights = jax.random.uniform(rng, 
-                                        minval=-self.box_max_height, 
-                                        maxval=self.box_max_height/2, 
-                                        shape=(self.n_boxes,)) 
-
-
-        # JAX maps the N rows of new_box_positions directly to the N indices in self.mocap_ids
-        mocap_pos = self._base_mocap_pos.at[self.mocap_ids, 2].set(box_heights)  # Update the Z coordinate of the mocap positions with the new box heights for terrain randomization
-        
-        return mocap_pos
-
-    def _get_mocap_ids(self):
-        """Get the mocap body IDs for the terrain boxes."""
-        mocap_ids = []
-        for i in range(self.n_boxes):
-            box_body_id = self.mj_model.body(f"box_{i}").id  # Get the body ID for the box obstacle
-            mocap_id = self.mj_model.body_mocapid[box_body_id]  # Get the corresponding mocap ID for the box body
-            mocap_ids.append(mocap_id)
-        return jp.array(mocap_ids)
 
 def main():
     env = BoxEnv()  # Create an instance of the BoxEnv environment.

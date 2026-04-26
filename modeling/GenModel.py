@@ -550,7 +550,62 @@ class GenModel:
             material='hfield_material',
         ) 
 
+    def add_box_heightfield(self,
+                            min_height: float = 0.1,
+                            max_height: float = 0.4,
+                            rng: jax.random.PRNGKey = jax.random.PRNGKey(0),
+                            sigma: float = 0.6,
+                            ):
+        
+        # Add a heightfield to the environment for testing using perlin noise:
+        nrow, ncol = 2, 1024
+        size = [30.0, 10.0, max_height, 0.1]  # [x_span, y_span, z_height, base_offset]
+        # Add some random noise to the height field
+        heightfield_data = np.zeros((nrow, ncol))
+        
+        for i in range(0, ncol, 32):
+            # Random integer for random width:
+            width_rng, height_rng, rng = jax.random.split(rng, 3)
+            width = jax.random.randint(width_rng, shape=(2,), minval=2, maxval=12)
+            height = jax.random.uniform(height_rng, minval=min_height, maxval=1.0)
+            heightfield_data[:,i-width[0]:i+width[1]] = height  # Create boxy steps every 8 rows
 
+        hfdata_flat = heightfield_data.flatten()
+        self.spec.add_hfield(
+            name='terrain',
+            nrow=nrow,
+            ncol=ncol,
+            size=size,
+            userdata=hfdata_flat,
+        )
+        ground = self.spec.add_texture(
+            type=mujoco.mjtTexture.mjTEXTURE_2D,
+            name="hfield_texture",
+            builtin=mujoco.mjtBuiltin.mjBUILTIN_CHECKER,
+            width=200,
+            height=200,
+            rgb1=[0.5, 0.8, 0.95],
+            rgb2=[0.5, 0.95, 0.8],
+            markrgb=[0.8, 0.8, 0.8]
+        )
+
+        # Add material for heightfield
+        self.spec.add_material(
+            name="hfield_material",
+            texrepeat=[5, 5],
+            reflectance=0.0,
+        ).textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = 'hfield_texture'
+        terrain_body = self.spec.worldbody.add_body(
+            name='terrain_body', 
+            pos=[0, 0, 0],
+            mocap = True,)
+        terrain_body.add_geom(
+            name='groundplane',
+            type=mujoco.mjtGeom.mjGEOM_HFIELD,
+            hfieldname='terrain',
+            pos=[0, 0, -0.75],
+            material='hfield_material',
+        ) 
     
     def add_box_obstacles(self, 
                           n_boxes: int = 10, 
