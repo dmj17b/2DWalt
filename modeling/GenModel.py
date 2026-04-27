@@ -555,6 +555,8 @@ class GenModel:
                             max_height: float = 0.4,
                             rng: jax.random.PRNGKey = jax.random.PRNGKey(0),
                             sigma: float = 0.6,
+                            difficulty: float = 0.5,
+                            spacing: int = 32
                             ):
         
         # Add a heightfield to the environment for testing using perlin noise:
@@ -567,7 +569,7 @@ class GenModel:
             # Random integer for random width:
             width_rng, height_rng, rng = jax.random.split(rng, 3)
             width = jax.random.randint(width_rng, shape=(2,), minval=2, maxval=12)
-            height = jax.random.uniform(height_rng, minval=min_height, maxval=1.0)
+            height = jax.random.uniform(height_rng, minval=min_height, maxval=difficulty*max_height)
             heightfield_data[:,i-width[0]:i+width[1]] = height  # Create boxy steps every 8 rows
 
         hfdata_flat = heightfield_data.flatten()

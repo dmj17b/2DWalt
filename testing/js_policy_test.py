@@ -22,7 +22,7 @@ import environment.HFieldEnv as HFieldEnv
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo3"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo6"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()

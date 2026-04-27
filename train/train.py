@@ -23,8 +23,8 @@ import environment.HFieldEnv as HFieldEnv
     
 def main():
 
-    resume_path = "policies/walter_ppo3"  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo4"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/walter_ppo6"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/walter_ppo7"  # Path to save the new PPO model parameters after training
 
     # env = HFieldEnv.HFieldEnv(difficulty=0.5)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
     env = BoxEnv.BoxEnv()  # Create an instance of the BoxEnv environment
@@ -37,13 +37,13 @@ def main():
         'episode_length': env_cfg.episode_length,
         'learning_rate': 1e-4,
         'num_envs': 4096,
-        'num_evals': 50,  
-        'num_minibatches': 64,
+        'num_evals': 20,  
+        'num_minibatches': 8,
         'num_updates_per_batch': 4,
-        'num_timesteps': 500_000_000,  
+        'num_timesteps': 50_000_000,  
         'normalize_observations': True,
         'reward_scaling': 1.0,
-        'unroll_length': 32,
+        'unroll_length': 64,
         }
 
     #---------- WandB logging setup ------------#
