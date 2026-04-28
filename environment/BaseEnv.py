@@ -48,7 +48,7 @@ class BaseEnv(mjx_env.MjxEnv):
 
         # Action scaling factors for different joints:
         self.hip_action_scale = 1.5  # Scaling factor for hip joint actions
-        self.knee_action_scale = 1.5  # Scaling factor for knee joint actions
+        self.knee_action_scale = 0.05  # Scaling factor for knee joint actions
         self.wheel_action_scale = 15.0  # Scaling factor for wheel joint actions
 
         # Termination condition parameters:
@@ -103,6 +103,7 @@ class BaseEnv(mjx_env.MjxEnv):
             "prev_action": jp.zeros(self.action_size),  # Initialize previous action to zeros
             "steps_since_cmd_change": jp.zeros(()),  # Counter for steps since last command change
             "steps_until_cmd_change": steps_until_cmd_change,  # Counter for steps until next command change
+            "knee_des_pos": jp.array([0.0, 0.0]),  # Desired knee positions 
             } 
 
         obs = self._get_obs(data, info)  # Get the initial observation
@@ -128,6 +129,7 @@ class BaseEnv(mjx_env.MjxEnv):
         reward = self._get_reward(data, action, state.info, state.metrics)  # Compute the reward
         new_info = self._maybe_update_cmd(state.info)  # Maybe update the command and reset the counter if needed
         new_info["prev_action"] = action  # Update the previous action in the info dictionary for use in the next step
+        new_info["knee_des_pos"] = jp.array([motor_targets[self.f_knee_act_addr], motor_targets[self.r_knee_act_addr]])  # Update the desired knee positions in the info dictionary for use in the next step
 
         # End episode if body pitch exceeds a certain threshold (encourages the robot to stay upright):
         done = jp.where(jp.abs(data.qpos[self.y_rot_qpos_addr]) > self.max_body_pitch, 1.0, 0.0)  # Check if body pitch exceeds threshold and set done flag accordingly
@@ -139,11 +141,11 @@ class BaseEnv(mjx_env.MjxEnv):
     
     def calculate_motor_targets(self, state: mjx_env.State, action: jax.Array) -> jax.Array:
         f_hip_target = self.default_ctrl[self.f_hip_act_addr] + self.hip_action_scale * action[0]
-        f_knee_target = state.data.qpos[self.f_knee_qpos_addr] + self.knee_action_scale * action[1]
+        f_knee_target = state.info["knee_des_pos"][0] + self.knee_action_scale * action[1]
         f_wheel1_target = self.default_ctrl[self.f_wheel1_act_addr] + self.wheel_action_scale * action[2]
         f_wheel2_target = self.default_ctrl[self.f_wheel2_act_addr] + self.wheel_action_scale * action[3]
         r_hip_target = self.default_ctrl[self.r_hip_act_addr] + self.hip_action_scale * action[4]
-        r_knee_target = state.data.qpos[self.r_knee_qpos_addr] + self.knee_action_scale * action[5]
+        r_knee_target = state.info["knee_des_pos"][1] + self.knee_action_scale * action[5]
         r_wheel1_target = self.default_ctrl[self.r_wheel1_act_addr] + self.wheel_action_scale * action[6]
         r_wheel2_target = self.default_ctrl[self.r_wheel2_act_addr] + self.wheel_action_scale * action[7]
 
@@ -234,27 +236,60 @@ class BaseEnv(mjx_env.MjxEnv):
 
     """Returns the observation from the environment as a JAX array."""
     def _get_obs(self, data: mjx.Data, info: dict[str, Any]) -> jax.Array:
+
         vel_command = jp.array([info["command"]])  # Get the velocity command from the info dictionary
         prev_action = info["prev_action"]  # Get the previous action from the info dictionary
-        body_pitch = jp.array([data.qpos[self.y_rot_qpos_addr]]) # Get the pitch of the body
-        f_hip_pos = jp.array([data.qpos[self.f_hip_qpos_addr]])  # Get the position of the front hip
-        f_knee_sin = jp.array([jp.sin(data.qpos[self.f_knee_qpos_addr])])  # Use sine of knee angle to avoid discontinuities
-        f_knee_cos = jp.array([jp.cos(data.qpos[self.f_knee_qpos_addr])])  # Include both sine and cosine to fully capture the knee angle information without discontinuities
-        f_knee_vel = jp.array([data.qvel[self.f_knee_qpos_addr]])  # Get the velocity of the front knee
-        r_hip_pos = jp.array([data.qpos[self.r_hip_qpos_addr]])  # Get the position of the rear hip
-        r_knee_sin = jp.array([jp.sin(data.qpos[self.r_knee_qpos_addr])])  # Use sine of knee angle to avoid discontinuities
-        r_knee_cos = jp.array([jp.cos(data.qpos[self.r_knee_qpos_addr])])  # Include both sine and cosine to fully capture the knee angle information without discontinuities
-        r_knee_vel = jp.array([data.qvel[self.r_knee_qpos_addr]])  # Get the velocity of the rear knee
-        f_wheel1_vel = jp.array([data.qvel[self.f_wheel1_qpos_addr]])  # Get the velocity of the front wheel 1
-        f_wheel2_vel = jp.array([data.qvel[self.f_wheel2_qpos_addr]])  # Get the velocity of the front wheel 2
-        r_wheel1_vel = jp.array([data.qvel[self.r_wheel1_qpos_addr]])  # Get the velocity of the rear wheel 1
-        r_wheel2_vel = jp.array([data.qvel[self.r_wheel2_qpos_addr]])  # Get the velocity of the rear wheel 2
-        # Add joint torques to observation:
-        joint_torques = data.qfrc_actuator[3:]  # Get the actuator torques for all joints
+
+        # Add noise to body pitch observation:
+        pitch_noise_rng, rng = jax.random.split(info["rng"])
+        noisy_pitch = data.qpos[self.y_rot_qpos_addr] + jax.random.normal(pitch_noise_rng)*0.01  # Add small noise to the body pitch observation to encourage robustness in the policy
+        body_pitch_sin = jp.array([jp.sin(data.qpos[self.y_rot_qpos_addr])])  # Get the sine of the body pitch
+        body_pitch_cos = jp.array([jp.cos(data.qpos[self.y_rot_qpos_addr])])  # Get the cosine of the body pitch
+
+
+        # Add noise to joint positions observations:
+        joint_noise_rng, rng = jax.random.split(rng)
+        joint_pos_noise = jax.random.normal(joint_noise_rng, shape=(self.mjx_model.nq,)) * 0.05  # Add small noise to joint position observations to encourage robustness in the policy
+
+        f_hip_pos = jp.array([data.qpos[self.f_hip_qpos_addr] + joint_pos_noise[self.f_hip_qpos_addr]])  # Add noise to the front hip position observation
+
+        noisy_f_knee_pos = data.qpos[self.f_knee_qpos_addr] + joint_pos_noise[self.f_knee_qpos_addr]  # Add noise to the front knee position observation
+        f_knee_sin = jp.array([jp.sin(noisy_f_knee_pos)])  # Use sine of knee angle to avoid discontinuities
+        f_knee_cos = jp.array([jp.cos(noisy_f_knee_pos)])  # Include both sine and cosine to fully capture the knee angle information without discontinuities
+
+        r_hip_pos = jp.array([data.qpos[self.r_hip_qpos_addr] + joint_pos_noise[self.r_hip_qpos_addr]])  # Add noise to the rear hip position observation
+
+        noisy_r_knee_pos = data.qpos[self.r_knee_qpos_addr] + joint_pos_noise[self.r_knee_qpos_addr]  # Add noise to the rear knee position observation
+        r_knee_sin = jp.array([jp.sin(noisy_r_knee_pos)])  # Use sine of knee angle to avoid discontinuities
+        r_knee_cos = jp.array([jp.cos(noisy_r_knee_pos)])  # Include both sine and cosine to fully capture the knee angle information without discontinuities
+
+        # Add noise to joint velocity observations:
+        joint_vel_noise_rng, rng = jax.random.split(rng)
+        joint_vel_noise = jax.random.normal(joint_vel_noise_rng, shape=(self.mjx_model.nv,)) * 0.5
+        
+        f_hip_vel = jp.array([data.qvel[self.f_hip_qpos_addr] + joint_vel_noise[self.f_hip_qpos_addr]])  # Get the velocity of the front hip
+        r_hip_vel = jp.array([data.qvel[self.r_hip_qpos_addr] + joint_vel_noise[self.r_hip_qpos_addr]])  # Get the velocity of the rear hip
+
+        f_knee_vel = jp.array([data.qvel[self.f_knee_qpos_addr] + joint_vel_noise[self.f_knee_qpos_addr]])  # Get the velocity of the front knee
+        r_knee_vel = jp.array([data.qvel[self.r_knee_qpos_addr] + joint_vel_noise[self.r_knee_qpos_addr]])  # Get the velocity of the rear knee
+
+        f_wheel1_vel = jp.array([data.qvel[self.f_wheel1_qpos_addr] + joint_vel_noise[self.f_wheel1_qpos_addr]])  # Get the velocity of the front wheel 1
+        f_wheel2_vel = jp.array([data.qvel[self.f_wheel2_qpos_addr] + joint_vel_noise[self.f_wheel2_qpos_addr]])  # Get the velocity of the front wheel 2
+        r_wheel1_vel = jp.array([data.qvel[self.r_wheel1_qpos_addr] + joint_vel_noise[self.r_wheel1_qpos_addr]])  # Get the velocity of the rear wheel 1
+        r_wheel2_vel = jp.array([data.qvel[self.r_wheel2_qpos_addr] + joint_vel_noise[self.r_wheel2_qpos_addr]])  # Get the velocity of the rear wheel 2
+
+
+        # Add noise to joint torque observations:
+        torque_noise_rng, rng = jax.random.split(rng)
+        torque_noise = jax.random.normal(torque_noise_rng, shape=(self.mjx_model.nu,)) * 0.05  # Add small noise to joint torque observations to encourage robustness
+        joint_torques = data.qfrc_actuator[3:] + torque_noise  # Get the actuator torques for all joints
         obs = jp.concatenate([
             vel_command,
-            body_pitch,
-            f_hip_pos, f_knee_sin, f_knee_cos, f_knee_vel, r_hip_pos, r_knee_sin, r_knee_cos, r_knee_vel,
+            body_pitch_sin, body_pitch_cos,
+            f_hip_pos, f_hip_vel,
+            f_knee_sin, f_knee_cos, f_knee_vel, 
+            r_hip_pos, r_hip_vel,
+            r_knee_sin, r_knee_cos, r_knee_vel,
             f_wheel1_vel, f_wheel2_vel, r_wheel1_vel, r_wheel2_vel,
             joint_torques,
             prev_action

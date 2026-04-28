@@ -37,3 +37,11 @@
 
 # Ideas for Experimentation:
 - Create a COT or total energy function for grounding simulations to reality
+
+# Jacob Recommendations:
+
+- Try velocities on knees - see what happens
+- Asymmetric actor/critic observations 
+- "encoder" framework - big to small (worry about this later)
+- Try rangefinder (restrict max distance observation)
+

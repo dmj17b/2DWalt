@@ -78,6 +78,7 @@ def main():
                 f_hip_pos = d_pad_y * hip_delta + f_hip_pos
                 r_hip_pos = d_pad_x * hip_delta + r_hip_pos
                 action = jp.array([-f_hip_pos, knee_vel, wheel_vel, wheel_vel, r_hip_pos, knee_vel, wheel_vel, wheel_vel])
+                print(f"Obs: {state.obs}")
 
 
 
