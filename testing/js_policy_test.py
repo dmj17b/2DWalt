@@ -1,7 +1,7 @@
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
-os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
+# os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
 import mujoco
 import mujoco.viewer
 from typing import Optional, Dict, Union
@@ -18,11 +18,12 @@ from pygame import joystick
 import pygame
 import environment.BoxEnv as BoxEnv
 import environment.HFieldEnv as HFieldEnv
+import environment.FlatEnv as FlatEnv
 
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo6"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo_warp"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()
@@ -32,8 +33,9 @@ def main():
     
 
     # Initialize the environment
-    env = BoxEnv.BoxEnv()  # Create an instance of the BoxEnv environment
-    # env = HFieldEnv.HFieldEnv(difficulty=0.5)  # Create an instance of the BoxEnv environment
+    # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment
+    env = HFieldEnv.HFieldEnv(difficulty=0.1)  # Create an instance of the BoxEnv environment
+    # env = BoxEnv.BoxEnv(difficulty = 0.5) # Create an instance of the BoxEnv environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions

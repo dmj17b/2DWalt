@@ -19,31 +19,33 @@ import wandb
 
 import environment.BoxEnv as BoxEnv
 import environment.HFieldEnv as HFieldEnv
+import environment.FlatEnv as FlatEnv
 
     
 def main():
 
-    resume_path = "policies/walter_ppo6"  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo7"  # Path to save the new PPO model parameters after training
+    resume_path = None  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/walter_ppo_warp"  # Path to save the new PPO model parameters after training
 
-    # env = HFieldEnv.HFieldEnv(difficulty=0.5)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
-    env = BoxEnv.BoxEnv()  # Create an instance of the BoxEnv environment
+    # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
+    env = HFieldEnv.HFieldEnv(difficulty=0.1)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
+    # env = BoxEnv.BoxEnv(difficulty=0.75)  # Create an instance of the BoxEnv environment
     env_cfg = env.config  # Retrieve the environment configuration
     ppo_params = {
         'action_repeat': 1,
-        'batch_size': 4096,
+        'batch_size': 4096,  
         'discounting': 0.995,
-        'entropy_cost': 0.001,
+        'entropy_cost': 0.01,
         'episode_length': env_cfg.episode_length,
         'learning_rate': 1e-4,
         'num_envs': 4096,
         'num_evals': 20,  
-        'num_minibatches': 8,
+        'num_minibatches': 32,
         'num_updates_per_batch': 4,
-        'num_timesteps': 50_000_000,  
+        'num_timesteps': 100_000_000,  
         'normalize_observations': True,
         'reward_scaling': 1.0,
-        'unroll_length': 64,
+        'unroll_length': 32,
         }
 
     #---------- WandB logging setup ------------#
@@ -79,12 +81,11 @@ def main():
         print(f"Action smoothing penalty: {metrics.get('eval/episode_reward/action_smoothing', 0.0):.6f}")
         print(f"Total reward: {metrics.get('eval/episode_reward', 0.0):.4f}")
 
-        if progress.eval_counter != 0:  
-            wandb_metrics = {k: _to_float(v) for k, v in metrics.items()}
-            wandb_metrics = {k: v for k, v in wandb_metrics.items() if v is not None}
-            wandb_metrics["num_steps"] = int(num_steps)
-            run.log(wandb_metrics, step=int(num_steps))
-            
+        wandb_metrics = {k: _to_float(v) for k, v in metrics.items()}
+        wandb_metrics = {k: v for k, v in wandb_metrics.items() if v is not None}
+        wandb_metrics["num_steps"] = int(num_steps)
+        run.log(wandb_metrics, step=int(num_steps))
+        
         progress.eval_counter += 1
         
 

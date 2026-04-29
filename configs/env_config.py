@@ -16,6 +16,7 @@ class RewardConfig:
     height_penalty: float = 10.0
     action_smoothing: float = 10.0
     terminal_pitch: float = 100.0
+    joint_vel: float = 10.0
 
 @flax.struct.dataclass
 class CommandConfig:
@@ -26,11 +27,12 @@ class CommandConfig:
 
 def SimConfig() -> config_dict.ConfigDict:
     return config_dict.create(
-        ctrl_dt = 0.01,
+        ctrl_dt = 0.02,
         sim_dt = 0.002,
         episode_length = 2000,
         action_repeat = 1,
-        impl = 'jax',
+        impl = 'warp',
+        naconmax = 10*4096,
     )
 
 @flax.struct.dataclass

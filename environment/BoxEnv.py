@@ -19,14 +19,15 @@ class BoxEnv(BaseEnv.BaseEnv):
             command_config: CommandConfig = CommandConfig(),
             difficulty: float = 0.5,  # Difficulty parameter to control box height and spacing in the terrain.
     ):
-        super().__init__(sim_config, reward_config, command_config)  # Initialize the base environment with the provided configurations.
         self.difficulty = difficulty  # Difficulty level for terrain generation, can be used to scale box height and spacing.
+
+        super().__init__(sim_config, reward_config, command_config)  # Initialize the base environment with the provided configurations.
 
 
     def _add_terrain(self):
         """Add box terrain to the environment"""
         # self.model_spec.add_groundplane()  # Add a flat ground plane to the model specification.
-        self.model_spec.add_box_heightfield(spacing=64)  # Add a box heightfield to the model specification for terrain generation.
+        self.model_spec.add_box_heightfield(spacing=64, difficulty=self.difficulty)  # Add a box heightfield to the model specification for terrain generation.
 
     def _reset_model_pos(self, rng) -> jax.Array:
         """Resets the model to an initial state. Between box obstacles"""

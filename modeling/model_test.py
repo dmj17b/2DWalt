@@ -17,7 +17,6 @@ model_spec.add_box_heightfield()  # Add a box heightfield to the model for testi
 
 mj_model = model_spec.spec.compile()
 mj_data = mujoco.MjData(mj_model)
-mj_data.qpos[1] = 5.0 # Set initial x position
 
 
 # Launch standard MuJoCo viewer

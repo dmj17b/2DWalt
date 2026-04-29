@@ -29,6 +29,9 @@ class BaseEnv(mjx_env.MjxEnv):
     ):
         super().__init__(config = sim_config) # Initialize the base class with config
 
+
+
+
         # Generate the model to be used in the environment:
         self.model_spec = GenModel.GenModel()  # Create an instance of the model generator
         self.model_spec.add_scene()  # Add the scene to the model
@@ -48,7 +51,7 @@ class BaseEnv(mjx_env.MjxEnv):
 
         # Action scaling factors for different joints:
         self.hip_action_scale = 1.5  # Scaling factor for hip joint actions
-        self.knee_action_scale = 0.05  # Scaling factor for knee joint actions
+        self.knee_action_scale = 1.5  # Scaling factor for knee joint actions
         self.wheel_action_scale = 15.0  # Scaling factor for wheel joint actions
 
         # Termination condition parameters:
@@ -56,6 +59,12 @@ class BaseEnv(mjx_env.MjxEnv):
 
         self._mj_model = self.model_spec.spec.compile()  # Compile the model and store it
         self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)  # Convert to JAX-compatible model
+
+        if(self._config.impl == 'warp'):
+            self.model = self._mj_model
+        else:
+            self.model = self._mjx_model
+
 
         self.default_ctrl = jp.zeros(self.mjx_model.nu)  # Default control inputs
     
@@ -71,11 +80,14 @@ class BaseEnv(mjx_env.MjxEnv):
         qvel = self._reset_model_vel(vel_rng)  # Reset the model's velocities
         mocap_pos = self._reset_terrain(terrain_rng)  # Randomize terrain by setting mocap bodies to new positions
 
+
         data = mjx_env.make_data(
-            self.mjx_model,
+            self.model,
             qpos=qpos,
             qvel=qvel,
-            mocap_pos=mocap_pos 
+            mocap_pos=mocap_pos, 
+            impl = self._config.impl,
+            naconmax=self._config.naconmax,
         )
 
         metrics = {
@@ -129,7 +141,6 @@ class BaseEnv(mjx_env.MjxEnv):
         reward = self._get_reward(data, action, state.info, state.metrics)  # Compute the reward
         new_info = self._maybe_update_cmd(state.info)  # Maybe update the command and reset the counter if needed
         new_info["prev_action"] = action  # Update the previous action in the info dictionary for use in the next step
-        new_info["knee_des_pos"] = jp.array([motor_targets[self.f_knee_act_addr], motor_targets[self.r_knee_act_addr]])  # Update the desired knee positions in the info dictionary for use in the next step
 
         # End episode if body pitch exceeds a certain threshold (encourages the robot to stay upright):
         done = jp.where(jp.abs(data.qpos[self.y_rot_qpos_addr]) > self.max_body_pitch, 1.0, 0.0)  # Check if body pitch exceeds threshold and set done flag accordingly
@@ -141,11 +152,11 @@ class BaseEnv(mjx_env.MjxEnv):
     
     def calculate_motor_targets(self, state: mjx_env.State, action: jax.Array) -> jax.Array:
         f_hip_target = self.default_ctrl[self.f_hip_act_addr] + self.hip_action_scale * action[0]
-        f_knee_target = state.info["knee_des_pos"][0] + self.knee_action_scale * action[1]
+        f_knee_target = state.data.qpos[self.f_knee_qpos_addr] + self.knee_action_scale * action[1]
         f_wheel1_target = self.default_ctrl[self.f_wheel1_act_addr] + self.wheel_action_scale * action[2]
         f_wheel2_target = self.default_ctrl[self.f_wheel2_act_addr] + self.wheel_action_scale * action[3]
         r_hip_target = self.default_ctrl[self.r_hip_act_addr] + self.hip_action_scale * action[4]
-        r_knee_target = state.info["knee_des_pos"][1] + self.knee_action_scale * action[5]
+        r_knee_target = state.data.qpos[self.r_knee_qpos_addr] + self.knee_action_scale * action[5]
         r_wheel1_target = self.default_ctrl[self.r_wheel1_act_addr] + self.wheel_action_scale * action[6]
         r_wheel2_target = self.default_ctrl[self.r_wheel2_act_addr] + self.wheel_action_scale * action[7]
 
@@ -183,10 +194,8 @@ class BaseEnv(mjx_env.MjxEnv):
         z_vel = data.sensordata[2]  # Get the vertical velocity in body frame
         z_vel_penalty = -self.reward_config.body_z_vel*jp.square(z_vel)  # Quadratic penalty for vertical velocity, scaled by reward_config
 
-        # Penalty for body height dropping below a specified value (encourages maintaining height):
-        z_height = data.qpos[self.z_slide_qpos_addr]
-        height_penalty = jp.where(z_height < -0.1, -self.reward_config.height_penalty, 0.0)  # Apply penalty if height is below threshold
         
+        joint_vel_penalty = jp.where(jp.abs(info["command"]) < 0.1, -self.reward_config.joint_vel * jp.sum(jp.square(data.qvel)), 0.0)  # Apply joint velocity penalty only when the velocity command is close to zero
 
         # Penalize work
         joint_torques = data.qfrc_actuator[3:]  # Get the actuator forces
@@ -197,7 +206,7 @@ class BaseEnv(mjx_env.MjxEnv):
         action_smoothing = -jp.sum(jp.square(action - info["prev_action"])) * self.reward_config.action_smoothing
 
         # Total reward
-        episode_reward = task_reward + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + action_smoothing
+        episode_reward = task_reward + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + action_smoothing + joint_vel_penalty
 
         metrics["reward/task"] = task_reward
         metrics["reward/body_pitch"] = body_pitch_penalty
@@ -242,9 +251,9 @@ class BaseEnv(mjx_env.MjxEnv):
 
         # Add noise to body pitch observation:
         pitch_noise_rng, rng = jax.random.split(info["rng"])
-        noisy_pitch = data.qpos[self.y_rot_qpos_addr] + jax.random.normal(pitch_noise_rng)*0.01  # Add small noise to the body pitch observation to encourage robustness in the policy
-        body_pitch_sin = jp.array([jp.sin(data.qpos[self.y_rot_qpos_addr])])  # Get the sine of the body pitch
-        body_pitch_cos = jp.array([jp.cos(data.qpos[self.y_rot_qpos_addr])])  # Get the cosine of the body pitch
+        noisy_pitch = data.qpos[self.y_rot_qpos_addr] + jax.random.normal(pitch_noise_rng) * 0.02  # Add small noise to body pitch observation to encourage robustness in the policy
+        body_pitch_sin = jp.array([jp.sin(noisy_pitch)])  # Get the sine of the body pitch
+        body_pitch_cos = jp.array([jp.cos(noisy_pitch)])  # Get the cosine of the body pitch
 
 
         # Add noise to joint positions observations:
@@ -265,7 +274,7 @@ class BaseEnv(mjx_env.MjxEnv):
 
         # Add noise to joint velocity observations:
         joint_vel_noise_rng, rng = jax.random.split(rng)
-        joint_vel_noise = jax.random.normal(joint_vel_noise_rng, shape=(self.mjx_model.nv,)) * 0.5
+        joint_vel_noise = jax.random.normal(joint_vel_noise_rng, shape=(self.mjx_model.nv,)) * 0.25  # Add small noise to joint velocity observations to encourage robustness in the policy
         
         f_hip_vel = jp.array([data.qvel[self.f_hip_qpos_addr] + joint_vel_noise[self.f_hip_qpos_addr]])  # Get the velocity of the front hip
         r_hip_vel = jp.array([data.qvel[self.r_hip_qpos_addr] + joint_vel_noise[self.r_hip_qpos_addr]])  # Get the velocity of the rear hip
