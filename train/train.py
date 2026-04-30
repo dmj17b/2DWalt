@@ -24,25 +24,25 @@ import environment.FlatEnv as FlatEnv
     
 def main():
 
-    resume_path = None  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo_warp"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/walter_ppo_warp4"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/walter_ppo_warp5"  # Path to save the new PPO model parameters after training
 
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
-    env = HFieldEnv.HFieldEnv(difficulty=0.1)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
-    # env = BoxEnv.BoxEnv(difficulty=0.75)  # Create an instance of the BoxEnv environment
+    # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
+    env = BoxEnv.BoxEnv(difficulty=0.75, spacing=48)  # Create an instance of the BoxEnv environment
     env_cfg = env.config  # Retrieve the environment configuration
     ppo_params = {
         'action_repeat': 1,
         'batch_size': 4096,  
         'discounting': 0.995,
-        'entropy_cost': 0.01,
+        'entropy_cost': 0.001,
         'episode_length': env_cfg.episode_length,
         'learning_rate': 1e-4,
         'num_envs': 4096,
-        'num_evals': 20,  
+        'num_evals': 50,  
         'num_minibatches': 32,
         'num_updates_per_batch': 4,
-        'num_timesteps': 100_000_000,  
+        'num_timesteps': 1_000_000_000,  
         'normalize_observations': True,
         'reward_scaling': 1.0,
         'unroll_length': 32,

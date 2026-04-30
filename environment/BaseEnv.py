@@ -127,7 +127,8 @@ class BaseEnv(mjx_env.MjxEnv):
     # Also computes the resulting observation, reward, done flag, and metrics.
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
 
-        motor_targets = self.calculate_motor_targets(state, action)  # Calculate motor targets based on the current state and action
+        motor_rng, rng = jax.random.split(state.info["rng"])  # Split the RNG for motor noise and other randomness in the step
+        motor_targets = self.calculate_motor_targets(state, action, motor_rng)  # Calculate motor targets based on the current state and action
 
         data = mjx_env.step(
             self.mjx_model,
@@ -150,13 +151,15 @@ class BaseEnv(mjx_env.MjxEnv):
         
         return mjx_env.State(data, obs, reward, done, state.metrics, new_info)
     
-    def calculate_motor_targets(self, state: mjx_env.State, action: jax.Array) -> jax.Array:
+    def calculate_motor_targets(self, state: mjx_env.State, action: jax.Array, rng: jax.Array) -> jax.Array:
+        knee_rng, rng = jax.random.split(rng)
+        knee_noise = jax.random.normal(knee_rng, shape=(2,)) * 0.05  # Add noise to the knee target positions to encourage robustness in the policy
         f_hip_target = self.default_ctrl[self.f_hip_act_addr] + self.hip_action_scale * action[0]
-        f_knee_target = state.data.qpos[self.f_knee_qpos_addr] + self.knee_action_scale * action[1]
+        f_knee_target = state.data.qpos[self.f_knee_qpos_addr] + knee_noise[0] + self.knee_action_scale * action[1]
         f_wheel1_target = self.default_ctrl[self.f_wheel1_act_addr] + self.wheel_action_scale * action[2]
         f_wheel2_target = self.default_ctrl[self.f_wheel2_act_addr] + self.wheel_action_scale * action[3]
         r_hip_target = self.default_ctrl[self.r_hip_act_addr] + self.hip_action_scale * action[4]
-        r_knee_target = state.data.qpos[self.r_knee_qpos_addr] + self.knee_action_scale * action[5]
+        r_knee_target = state.data.qpos[self.r_knee_qpos_addr] + knee_noise[1] + self.knee_action_scale * action[5]
         r_wheel1_target = self.default_ctrl[self.r_wheel1_act_addr] + self.wheel_action_scale * action[6]
         r_wheel2_target = self.default_ctrl[self.r_wheel2_act_addr] + self.wheel_action_scale * action[7]
 
@@ -206,7 +209,7 @@ class BaseEnv(mjx_env.MjxEnv):
         action_smoothing = -jp.sum(jp.square(action - info["prev_action"])) * self.reward_config.action_smoothing
 
         # Total reward
-        episode_reward = task_reward + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + action_smoothing + joint_vel_penalty
+        episode_reward = task_reward + vel_tracking_reward + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + action_smoothing + joint_vel_penalty
 
         metrics["reward/task"] = task_reward
         metrics["reward/body_pitch"] = body_pitch_penalty

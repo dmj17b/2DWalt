@@ -1,6 +1,11 @@
 # Priorities
+- Organize config files!!!
 - Figure out how backend rollouts work
 - Normalize rewards to start at zero
+- NN structure (512, 256, 128)
+- Asymmetric observation space for policy vs value networks
+- Domain Randomization
+
 
 # Algorithm Tuning TODOs
 - Add stair heightfield environment
@@ -16,8 +21,7 @@
 - Refactor config inclusions for better reusability
     - Add environment, reward, and command configs to WandB so I remember what has changed
 - (Eventually) add distance sensors at front and rear of body
-- (Eventually) Make environment work with MJWarp
-    - Supposedly warp has better contact modeling than mjx and allows for different geoms
+
 
 # Ideas:
 - Warm start policy with data from joystick control?
