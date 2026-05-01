@@ -16,7 +16,7 @@ from mujoco_playground import wrapper
 import inspect
 from pathlib import Path
 import wandb
-
+from utils import EvalVisualizer
 import environment.BoxEnv as BoxEnv
 import environment.HFieldEnv as HFieldEnv
 import environment.FlatEnv as FlatEnv
@@ -24,8 +24,8 @@ import environment.FlatEnv as FlatEnv
     
 def main():
 
-    resume_path = "policies/walter_ppo_warp4"  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo_warp5"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/walter_ppo_warp5"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/walter_ppo_warp6"  # Path to save the new PPO model parameters after training
 
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
     # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
@@ -39,10 +39,10 @@ def main():
         'episode_length': env_cfg.episode_length,
         'learning_rate': 1e-4,
         'num_envs': 4096,
-        'num_evals': 50,  
+        'num_evals': 10,  
         'num_minibatches': 32,
         'num_updates_per_batch': 4,
-        'num_timesteps': 1_000_000_000,  
+        'num_timesteps': 10_000_000,  
         'normalize_observations': True,
         'reward_scaling': 1.0,
         'unroll_length': 32,
@@ -53,6 +53,18 @@ def main():
     project = "2DWalt_PPO"
     wandb_config = dict(ppo_params)
     run = wandb.init(project=project, config=wandb_config)
+    visualizer = EvalVisualizer(
+        host_env=env,                 # your host-side env instance (BoxEnv.BoxEnv(...))
+        save_dir="visualization",
+        render_interval=10000,        # render every 10k steps
+        max_steps=300,
+        fps=15,
+        wandb_run=run,                # optional: your wandb.run from main()
+    )
+
+    def policy_params_fn(step, make_policy, params):
+        # train will call this periodically; run a short eval + log if due
+        visualizer.evaluate_and_log(step, make_policy, params)
 
     def _to_float(value):
         """Safely converts JAX/NumPy scalars to plain Python floats for logging."""
@@ -104,6 +116,7 @@ def main():
         **dict(ppo_training_params),
         network_factory = network_factory,
         progress_fn=progress,
+        policy_params_fn=policy_params_fn,
     )
     train_kwargs = dict(
         environment=env,
@@ -118,7 +131,7 @@ def main():
             restore_params=resume_params
         )
     else:
-        print(f"Starting PPO training from scratch...")
+        print("Starting PPO training from scratch...")
         make_inference_fn, params, metrics = train_fn(
             **train_kwargs
         )

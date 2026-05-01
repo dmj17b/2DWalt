@@ -1,7 +1,7 @@
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
-os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
+# os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
 import mujoco
 import mujoco.viewer
 from typing import Optional, Dict, Union
@@ -19,10 +19,10 @@ import environment.HFieldEnv as HFieldEnv
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo3"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo_warp5"  # Path to the saved PPO model parameters
 
     # Initialize the environment
-    env = BoxEnv.BoxEnv()  # Create an instance of the BoxEnv environment
+    env = BoxEnv.BoxEnv(difficulty=0.75, spacing=48)  # Create an instance of the BoxEnv environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions
