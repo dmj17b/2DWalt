@@ -36,11 +36,6 @@ def SimConfig() -> config_dict.ConfigDict:
     )
 
 @flax.struct.dataclass
-class TerrainConfig:
-    terrain_type: str = "flat" # Options: "flat", "heightfield", "boxes", "stairs"
-    difficulty_start: float = 0.0
-
-@flax.struct.dataclass
 class TrainConfig:
     action_repeat: int = 1
     batch_size: int = 1024

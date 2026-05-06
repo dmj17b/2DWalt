@@ -490,15 +490,53 @@ class GenModel:
         ) 
 
     def add_stair_heightfield(self,
-                            step_height: float = 0.2,
-                            step_width: int = 32,
                             ):
+
         nrow, ncol = 2, 4096
-        size = [128.0, 10.0, 5.0, 0.1]  # [x_span, y_span, z_height, base_offset]
-        # Add some random noise to the height field
+        size = [20.0, 10.0, 5.0, 0.1]  # [x_half_size, y_half_size, z_max, z_bottom]
+        z_max = size[2]
+        
+        # 1. Corrected Resolution (Total Span)
+        total_x_span =  2*size[0] 
+        hf_resolution = total_x_span / (ncol - 1)
+        
         heightfield_data = np.zeros((nrow, ncol))
         
-        # First section: flat
+        # 2. Stair Parameters
+        step_dir = -1.0  # -1 for descending stairs
+        step_rise = 0.25
+        step_run = 0.25
+        num_steps = 5
+        
+        step_height_delta = step_rise / z_max
+        
+        # Calculate starting height based on direction
+        # If descending, start exactly high enough to reach 0 at the end
+        current_height = (num_steps * step_height_delta) if step_dir == -1.0 else 0.0
+        
+        if current_height > 1.0 or current_height < 0.0:
+            raise ValueError("Initial height exceeds MuJoCo's normalized bounds of [0, 1].")
+
+        # Define the starting physical X coordinate for this section
+        start_x = 0.0 
+        
+        for step_idx in range(num_steps):
+            # 3. Calculate absolute physical bounds for this step
+            step_start_x = start_x + (step_idx * step_run)
+            step_end_x = start_x + ((step_idx + 1) * step_run)
+            
+            # 4. Discretize independently to prevent truncation drift
+            start_idx = int(step_start_x / hf_resolution)
+            end_idx = int(step_end_x / hf_resolution)
+            
+            # Ensure we don't index out of bounds
+            end_idx = min(end_idx, ncol)
+            
+            # Apply the normalized height
+            heightfield_data[:, start_idx:end_idx] = current_height
+            
+            # Update height for the next step iteration
+            current_height += step_dir * step_height_delta
 
         
 
