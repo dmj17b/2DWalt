@@ -493,7 +493,7 @@ class GenModel:
                             ):
 
         nrow, ncol = 2, 4096
-        size = [20.0, 10.0, 5.0, 0.1]  # [x_half_size, y_half_size, z_max, z_bottom]
+        size = [20.0, 5.0, 5.0, 0.1]  # [x_half_size, y_half_size, z_max, z_bottom]
         z_max = size[2]
         
         # 1. Corrected Resolution (Total Span)
@@ -504,9 +504,9 @@ class GenModel:
         
         # 2. Stair Parameters
         step_dir = -1.0  # -1 for descending stairs
-        step_rise = 0.25
-        step_run = 0.25
-        num_steps = 5
+        step_rise = 0.1
+        step_run = 0.2
+        num_steps = 10
         
         step_height_delta = step_rise / z_max
         
@@ -537,8 +537,28 @@ class GenModel:
             
             # Update height for the next step iteration
             current_height += step_dir * step_height_delta
-
+    
+        start_x += 2.0
         
+        for step_idx in range(num_steps, num_steps*2+1):
+            step_start_x = start_x + (step_idx * step_run)
+            step_end_x = start_x + ((step_idx + 1) * step_run)
+            
+            # 4. Discretize independently to prevent truncation drift
+            start_idx = int(step_start_x / hf_resolution)
+            end_idx = int(step_end_x / hf_resolution)
+            
+            # Ensure we don't index out of bounds
+            end_idx = min(end_idx, ncol)
+            
+            # Apply the normalized height
+            heightfield_data[:, start_idx:end_idx] = current_height
+            
+            # Update height for the next step iteration
+            current_height -= step_dir * step_height_delta
+
+        heightfield_data[-1, -1] = 1.0  # Forces max(H) to 1.0
+        heightfield_data[-1, -2] = 0.0  # Forces min(H) to 0.0
 
         hfdata_flat = heightfield_data.flatten()
         self.spec.add_hfield(
