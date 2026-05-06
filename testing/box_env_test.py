@@ -1,7 +1,7 @@
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
-os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
+# os.environ["JAX_PLATFORMS"] = "cpu"  # Force JAX to use CPU for this test
 import environment.BoxEnv as BoxEnv  # Import the BoxEnv environment class to test environment creation.
 import mujoco
 import mujoco.viewer
@@ -23,7 +23,7 @@ def main():
     hip_delta = 0.05  # Increment for hip position command when D-pad is pressed
 
     # Initialize the environment
-    env = BoxEnv.BoxEnv(difficulty = 0.5)  # Create an instance of the BoxEnv environment
+    env = BoxEnv.BoxEnv(difficulty = 0.75, spacing = 48)  # Create an instance of the BoxEnv environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions
@@ -78,7 +78,7 @@ def main():
                 f_hip_pos = d_pad_y * hip_delta + f_hip_pos
                 r_hip_pos = d_pad_x * hip_delta + r_hip_pos
                 action = jp.array([-f_hip_pos, knee_vel, wheel_vel, wheel_vel, r_hip_pos, knee_vel, wheel_vel, wheel_vel])
-                print(f"Obs: {state.obs}")
+                # print(f"Obs: {state.obs}")
 
 
 
@@ -88,10 +88,10 @@ def main():
 
             n_steps += 1
 
-            # if n_steps > env.config.episode_length/10:
-            #     key, subkey = jax.random.split(key)
-            #     state = reset_fn(subkey)  # Reset the environment after 2000 steps for testing purposes
-            #     n_steps = 0
+            if n_steps > env.config.episode_length:
+                key, subkey = jax.random.split(key)
+                state = reset_fn(subkey)  # Reset the environment after 2000 steps for testing purposes
+                n_steps = 0
 
             elapsed = time.time()-start_time
             if elapsed < dt:

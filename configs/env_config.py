@@ -21,15 +21,15 @@ class RewardConfig:
 @flax.struct.dataclass
 class CommandConfig:
     max_vel: float = 1.5
-    min_cmd_duration: float = 0.75
-    max_cmd_duration: float = 2.0
+    min_cmd_duration: float = 1.5
+    max_cmd_duration: float = 3.0
     zero_cmd_prob: float = 0.1
 
 def SimConfig() -> config_dict.ConfigDict:
     return config_dict.create(
         ctrl_dt = 0.02,
         sim_dt = 0.002,
-        episode_length = 2000,
+        episode_length = 3000,
         action_repeat = 1,
         impl = 'warp',
         naconmax = 10*4096,

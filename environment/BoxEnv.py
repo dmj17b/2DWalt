@@ -35,7 +35,7 @@ class BoxEnv(BaseEnv.BaseEnv):
     def _reset_model_pos(self, rng) -> jax.Array:
         """Resets the model to an initial state. Between box obstacles"""
         qpos = jp.zeros(self.mjx_model.nq)  # Initialize qpos to zeros.
-        x_pos = jax.random.uniform(rng, minval=-20.0, maxval=20.0)  # Sample a random x position for the robot within the specified range.
+        x_pos = jax.random.uniform(rng, minval=-15.0, maxval=15.0)  # Sample a random x position for the robot within the specified range.
         qpos = qpos.at[self.z_slide_qpos_addr].set(0.05)  # Set the z position to 0.5 to be above the flat ground.
         qpos = qpos.at[self.x_slide_qpos_addr].set(x_pos)  # Set the x position to the sampled value.
         return qpos

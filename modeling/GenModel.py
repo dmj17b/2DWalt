@@ -428,127 +428,7 @@ class GenModel:
             material='hfield_material',
         ) 
 
-    def add_stadium_hfield(self,
-                           step_height: float = 0.3,
-                           step_interval: int = 6,
-                           max_height: float = 5.0,
-                           sigma: float = 0.6,
-                           rng: jax.random.PRNGKey = jax.random.PRNGKey(0,),
-                           ):
-        # Create "Stadium" style stepped heights:
-        size = [30.0, 30.0, max_height, 0.5]  # [x_span, y_span, z_height, base_offset]
-        nrow, ncol = 256, 256
-        hfield_data = np.zeros((nrow, ncol))
-        curr_height = max_height
-        direction = -1  # Start by stepping downwards
-        for i in range(nrow):
-            if i % step_interval == 0:
-                curr_height += step_height*direction
-            # Reverse step direction at halfway point
-            if i == nrow//2:
-                direction *= -1
-            hfield_data[:, i] = curr_height
-
-        hfdata_flat = hfield_data.flatten()
-
-        self.spec.add_hfield(
-            name='terrain',
-            nrow=nrow,
-            ncol=ncol,
-            size=size,
-            userdata=hfdata_flat,
-        )
-        ground = self.spec.add_texture(
-            type=mujoco.mjtTexture.mjTEXTURE_2D,
-            name="hfield_texture",
-            builtin=mujoco.mjtBuiltin.mjBUILTIN_CHECKER,
-            width=200,
-            height=200,
-            rgb1=[0.5, 0.8, 0.95],
-            rgb2=[0.5, 0.95, 0.8],
-            markrgb=[0.8, 0.8, 0.8]
-        )
-
-        # Add material for heightfield
-        self.spec.add_material(
-            name="hfield_material",
-            texrepeat=[5, 5],
-            reflectance=0.0,
-        ).textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = 'hfield_texture'
-        terrain_body = self.spec.worldbody.add_body(
-            name='terrain_body', 
-            pos=[0, 0, 0],
-            mocap = True,)
-        terrain_body.add_geom(
-            name='groundplane',
-            type=mujoco.mjtGeom.mjGEOM_HFIELD,
-            hfieldname='terrain',
-            pos=[0, 0, -0.75],
-            material='hfield_material',
-        ) 
-
-    def add_stepped_hfield(self, 
-                    height: float = 8.0,
-                    noise_height: float = 0.25,
-                    step_height: float = 0.3,
-                    step_interval: int = 8,
-                    sigma: float = 0.6,
-                    rng: jax.random.PRNGKey = jax.random.PRNGKey(0)
-                   ):
-
-        
-        # Add a heightfield to the environment for testing using perlin noise:
-        nrow, ncol = 128, 128
-        size = [30.0, 30.0, height, 0.5]  # [x_span, y_span, z_height, base_offset]
-        # Add some random steps to the height field
-        heightfield_data = np.zeros((nrow, ncol))
-        curr_height = 0.0
-        for i in range(nrow):
-            if i % step_interval == 0:  # Add a step every 8 rows
-                curr_height += step_height  # Increase the height of the step
-            heightfield_data[:, i] = curr_height
-            heightfield_data[i, :] = curr_height  # Add the step height to the heightfield data
-
-        rng = np.random.default_rng(seed=42)
-        heightfield_data = heightfield_data + rng.uniform(0, noise_height, size=(nrow, ncol)) 
-        heightfield_data = gaussian_filter(heightfield_data, sigma=sigma)  # Smooth the heightfield with a Gaussian filter
-        hfdata_flat = heightfield_data.flatten()
-
-        self.spec.add_hfield(
-            name='terrain',
-            nrow=nrow,
-            ncol=ncol,
-            size=size,
-            userdata=hfdata_flat,
-        )
-        ground = self.spec.add_texture(
-            type=mujoco.mjtTexture.mjTEXTURE_2D,
-            name="hfield_texture",
-            builtin=mujoco.mjtBuiltin.mjBUILTIN_CHECKER,
-            width=200,
-            height=200,
-            rgb1=[0.5, 0.8, 0.95],
-            rgb2=[0.5, 0.95, 0.8],
-            markrgb=[0.8, 0.8, 0.8]
-        )
-
-        # Add material for heightfield
-        self.spec.add_material(
-            name="hfield_material",
-            texrepeat=[5, 5],
-            reflectance=0.0,
-        ).textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = 'hfield_texture'
-        terrain_body = self.spec.worldbody.add_body(
-            name='terrain_body', 
-            pos=[0, 0, 0],
-            mocap = True,)
-        terrain_body.add_geom(
-            name='groundplane',
-            type=mujoco.mjtGeom.mjGEOM_HFIELD,
-            hfieldname='terrain',
-            pos=[0, 0, -0.75],
-            material='hfield_material',
-        ) 
+    
 
     def add_box_heightfield(self,
                             min_height: float = 0.1,
@@ -608,29 +488,106 @@ class GenModel:
             pos=[0, 0, -0.75],
             material='hfield_material',
         ) 
-    
-    def add_box_obstacles(self, 
-                          n_boxes: int = 10, 
-                          x_range: float = 20.0,
-                          width_range: jp.ndarray = jp.array([0.15, 1.0]),
-                          max_height: float = 0.25,
-                          rng: jax.random.PRNGKey = jax.random.PRNGKey(0)
-                          ):
-        x_pos = jp.linspace(-x_range, x_range, n_boxes)
-        for i in range(n_boxes):
-            rng, pos_rng, size_rng = jax.random.split(rng, 3)
-            box = self.spec.worldbody.add_body(
-                name=f'box_{i}',
-                pos=[x_pos[i], 0.0, max_height/2],
-                mocap = True,
-            )
-            box.add_geom(
-                type=mujoco.mjtGeom.mjGEOM_BOX,
-                size=[jax.random.uniform(size_rng, minval=width_range[0], maxval=width_range[1]), 5, max_height],
-                rgba=[0.8, 0.8, 0.8, 1],
-                contype=1,
-                conaffinity=0,
-            )
+
+    def add_stair_heightfield(self,
+                            step_height: float = 0.2,
+                            step_width: int = 32,
+                            ):
+        nrow, ncol = 2, 4096
+        size = [128.0, 10.0, 5.0, 0.1]  # [x_span, y_span, z_height, base_offset]
+        # Add some random noise to the height field
+        heightfield_data = np.zeros((nrow, ncol))
+        
+        # First section: flat
+
+        
+
+        hfdata_flat = heightfield_data.flatten()
+        self.spec.add_hfield(
+            name='terrain',
+            nrow=nrow,
+            ncol=ncol,
+            size=size,
+            userdata=hfdata_flat,
+        )
+        ground = self.spec.add_texture(
+            type=mujoco.mjtTexture.mjTEXTURE_2D,
+            name="hfield_texture",
+            builtin=mujoco.mjtBuiltin.mjBUILTIN_CHECKER,
+            width=200,
+            height=200,
+            rgb1=[0.5, 0.8, 0.95],
+            rgb2=[0.5, 0.95, 0.8],
+            markrgb=[0.8, 0.8, 0.8]
+        )
+
+        # Add material for heightfield
+        self.spec.add_material(
+            name="hfield_material",
+            texrepeat=[5, 5],
+            reflectance=0.0,
+        ).textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = 'hfield_texture'
+        terrain_body = self.spec.worldbody.add_body(
+            name='terrain_body', 
+            pos=[0, 0, 0],
+            mocap = True,)
+        terrain_body.add_geom(
+            name='groundplane',
+            type=mujoco.mjtGeom.mjGEOM_HFIELD,
+            hfieldname='terrain',
+            pos=[0, 0, -0.75],
+            material='hfield_material',
+        ) 
+
+    def add_obstacle_course(self,
+                            ):
+        
+        
+        nrow, ncol = 2, 4096
+        size = [128.0, 10.0, 5.0, 0.1]  # [x_span, y_span, z_height, base_offset]
+        # Add some random noise to the height field
+        heightfield_data = np.zeros((nrow, ncol))
+        
+        # First section: flat
+
+        
+
+        hfdata_flat = heightfield_data.flatten()
+        self.spec.add_hfield(
+            name='terrain',
+            nrow=nrow,
+            ncol=ncol,
+            size=size,
+            userdata=hfdata_flat,
+        )
+        ground = self.spec.add_texture(
+            type=mujoco.mjtTexture.mjTEXTURE_2D,
+            name="hfield_texture",
+            builtin=mujoco.mjtBuiltin.mjBUILTIN_CHECKER,
+            width=200,
+            height=200,
+            rgb1=[0.5, 0.8, 0.95],
+            rgb2=[0.5, 0.95, 0.8],
+            markrgb=[0.8, 0.8, 0.8]
+        )
+
+        # Add material for heightfield
+        self.spec.add_material(
+            name="hfield_material",
+            texrepeat=[5, 5],
+            reflectance=0.0,
+        ).textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = 'hfield_texture'
+        terrain_body = self.spec.worldbody.add_body(
+            name='terrain_body', 
+            pos=[0, 0, 0],
+            mocap = True,)
+        terrain_body.add_geom(
+            name='groundplane',
+            type=mujoco.mjtGeom.mjGEOM_HFIELD,
+            hfieldname='terrain',
+            pos=[0, 0, -0.75],
+            material='hfield_material',
+        ) 
 
 
     def compile_mj_model(self):

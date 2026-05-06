@@ -23,7 +23,7 @@ import environment.FlatEnv as FlatEnv
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo_warp4"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo_warp9"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()
@@ -35,7 +35,7 @@ def main():
     # Initialize the environment
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment
     # env = HFieldEnv.HFieldEnv(difficulty=0.1)  # Create an instance of the BoxEnv environment
-    env = BoxEnv.BoxEnv(difficulty = 0.75, spacing = 48) # Create an instance of the BoxEnv environment
+    env = BoxEnv.BoxEnv(difficulty = 0.9, spacing = 48) # Create an instance of the BoxEnv environment
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions

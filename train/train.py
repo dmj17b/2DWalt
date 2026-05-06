@@ -1,5 +1,7 @@
 import os
 import sys
+
+from wandb.util import np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 import jax
 import jax.numpy as jp
@@ -10,13 +12,13 @@ from brax.training.agents.ppo import networks as ppo_networks
 from brax.training.agents.ppo import networks_vision as ppo_networks_vision
 from brax.training.agents.ppo import train as ppo
 from brax.io import model
+from brax.io import html
 from ml_collections import config_dict
 import functools
 from mujoco_playground import wrapper
 import inspect
 from pathlib import Path
 import wandb
-from utils import EvalVisualizer
 import environment.BoxEnv as BoxEnv
 import environment.HFieldEnv as HFieldEnv
 import environment.FlatEnv as FlatEnv
@@ -24,12 +26,12 @@ import environment.FlatEnv as FlatEnv
     
 def main():
 
-    resume_path = "policies/walter_ppo_warp5"  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo_warp6"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/walter_ppo_warp8_2"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/walter_ppo_warp9"  # Path to save the new PPO model parameters after training
 
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
     # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
-    env = BoxEnv.BoxEnv(difficulty=0.75, spacing=48)  # Create an instance of the BoxEnv environment
+    env = BoxEnv.BoxEnv(difficulty=0.9, spacing=48)  # Create an instance of the BoxEnv environment
     env_cfg = env.config  # Retrieve the environment configuration
     ppo_params = {
         'action_repeat': 1,
@@ -37,12 +39,12 @@ def main():
         'discounting': 0.995,
         'entropy_cost': 0.001,
         'episode_length': env_cfg.episode_length,
-        'learning_rate': 1e-4,
+        'learning_rate': 1e-5,
         'num_envs': 4096,
-        'num_evals': 10,  
+        'num_evals': 20,  
         'num_minibatches': 32,
         'num_updates_per_batch': 4,
-        'num_timesteps': 10_000_000,  
+        'num_timesteps': 500_000_000,  
         'normalize_observations': True,
         'reward_scaling': 1.0,
         'unroll_length': 32,
@@ -53,18 +55,7 @@ def main():
     project = "2DWalt_PPO"
     wandb_config = dict(ppo_params)
     run = wandb.init(project=project, config=wandb_config)
-    visualizer = EvalVisualizer(
-        host_env=env,                 # your host-side env instance (BoxEnv.BoxEnv(...))
-        save_dir="visualization",
-        render_interval=10000,        # render every 10k steps
-        max_steps=300,
-        fps=15,
-        wandb_run=run,                # optional: your wandb.run from main()
-    )
 
-    def policy_params_fn(step, make_policy, params):
-        # train will call this periodically; run a short eval + log if due
-        visualizer.evaluate_and_log(step, make_policy, params)
 
     def _to_float(value):
         """Safely converts JAX/NumPy scalars to plain Python floats for logging."""
@@ -72,7 +63,8 @@ def main():
             return float(value)
         except (TypeError, ValueError):
             return None
-
+        
+   
     # Progress callback
     def progress(num_steps, metrics):
         if not hasattr(progress, "eval_counter"):
@@ -116,7 +108,6 @@ def main():
         **dict(ppo_training_params),
         network_factory = network_factory,
         progress_fn=progress,
-        policy_params_fn=policy_params_fn,
     )
     train_kwargs = dict(
         environment=env,
