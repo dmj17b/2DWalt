@@ -19,11 +19,12 @@ import pygame
 import environment.BoxEnv as BoxEnv
 import environment.HFieldEnv as HFieldEnv
 import environment.FlatEnv as FlatEnv
+import environment.StairEnv as StairEnv
 
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo_warp9"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo_warp10"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()
@@ -35,7 +36,8 @@ def main():
     # Initialize the environment
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment
     # env = HFieldEnv.HFieldEnv(difficulty=0.1)  # Create an instance of the BoxEnv environment
-    env = BoxEnv.BoxEnv(difficulty = 0.9, spacing = 48) # Create an instance of the BoxEnv environment
+    # env = BoxEnv.BoxEnv(difficulty = 0.9, spacing = 48) # Create an instance of the BoxEnv environment
+    env = StairEnv.StairEnv()  # Create an instance of the StairEnv environment for stair climbing tasks
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions

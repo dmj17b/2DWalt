@@ -28,8 +28,8 @@ class CommandConfig:
 def SimConfig() -> config_dict.ConfigDict:
     return config_dict.create(
         ctrl_dt = 0.02,
-        sim_dt = 0.002,
-        episode_length = 3000,
+        sim_dt = 0.004,
+        episode_length = 1000,
         action_repeat = 1,
         impl = 'warp',
         naconmax = 10*4096,

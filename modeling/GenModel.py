@@ -1,12 +1,14 @@
-import mujoco
-import numpy as np
 import os
 import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
+
+import mujoco
+import numpy as np
 import jax
 import jax.numpy as jp
 from scipy.ndimage import gaussian_filter
+from modeling.TerrainBuilder import StairBuilder
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
 
 # Class for generating a 2D WaLTER model programatically
 class GenModel:
@@ -40,6 +42,8 @@ class GenModel:
             'wheel_armature': 0.2,
             'wheel_frictionloss': 0.01,
         }
+
+        self.wheel_solref = [0.1, 0.5]  # Solref parameters for the wheel joints to improve contact stability
 
         self.model_params = model_params
         self.motor_params = motor_params
@@ -144,6 +148,7 @@ class GenModel:
             size = [model_params['wheel_radius'], 0, 0],
             contype = wheel_contype,
             conaffinity = wheel_conaffinity,
+            solref = self.wheel_solref,
         )
         front_wheel1.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
@@ -164,6 +169,7 @@ class GenModel:
             size = [model_params['wheel_radius'], 0, 0],
             contype = wheel_contype,
             conaffinity = wheel_conaffinity,
+            solref = self.wheel_solref,
         )
         front_wheel2.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
@@ -227,6 +233,7 @@ class GenModel:
             size = [model_params['wheel_radius'], 0, 0],
             contype = wheel_contype,
             conaffinity = wheel_conaffinity,
+            solref = self.wheel_solref,
         )
         rear_wheel1.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
@@ -247,6 +254,7 @@ class GenModel:
             size = [model_params['wheel_radius'], 0, 0],
             contype = wheel_contype,
             conaffinity = wheel_conaffinity,
+            solref = self.wheel_solref,
         )
         rear_wheel2.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
@@ -489,78 +497,34 @@ class GenModel:
             material='hfield_material',
         ) 
 
-    def add_stair_heightfield(self,
-                            ):
+    def add_stair_heightfield(self,):
 
-        nrow, ncol = 2, 4096
+        nrow, ncol = 2, 1024
         size = [20.0, 5.0, 5.0, 0.1]  # [x_half_size, y_half_size, z_max, z_bottom]
         z_max = size[2]
         
-        # 1. Corrected Resolution (Total Span)
-        total_x_span =  2*size[0] 
-        hf_resolution = total_x_span / (ncol - 1)
-        
-        heightfield_data = np.zeros((nrow, ncol))
-        
-        # 2. Stair Parameters
-        step_dir = -1.0  # -1 for descending stairs
+        stairs = StairBuilder(size=size, nrow=nrow, ncol=ncol);
         step_rise = 0.1
         step_run = 0.2
-        num_steps = 10
-        
-        step_height_delta = step_rise / z_max
-        
-        # Calculate starting height based on direction
-        # If descending, start exactly high enough to reach 0 at the end
-        current_height = (num_steps * step_height_delta) if step_dir == -1.0 else 0.0
-        
-        if current_height > 1.0 or current_height < 0.0:
-            raise ValueError("Initial height exceeds MuJoCo's normalized bounds of [0, 1].")
+        num_steps = 20
+        start_height = (num_steps * step_rise) / z_max  # Start high enough to descend all steps
+        stairs.set_starting_height(start_height)
+        stairs.add_flat(length = 5.0)  # Add a flat section at the beginning
+        stairs.add_stairs(rise=step_rise, run=step_run, num_steps=num_steps, direction=-1.0)  # Add descending stairs
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+        stairs.add_stairs(rise=step_rise, run=step_run, num_steps=num_steps, direction=1.0)  # Add ascending stairs
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+        stairs.add_stairs(rise = 0.2, run = 0.3, num_steps = 10, direction = -1.0) # Add some steeper stairs for good measure
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+        stairs.add_stairs(rise = 0.2, run = 0.3, num_steps = 10, direction = 1.0) # Add some steeper stairs for good measure
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+        stairs.add_stairs(rise = 0.25, run = 0.3, num_steps = 8, direction = -1.0) # Add some very steep stairs for good measure
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+        stairs.add_stairs(rise = 0.25, run = 0.3, num_steps = 8, direction = 1.0) # Add some very steep stairs for good measure
+        stairs.add_flat(length = 10.0)
+        hfdata_flat = stairs.finalize()
 
-        # Define the starting physical X coordinate for this section
-        start_x = 0.0 
-        
-        for step_idx in range(num_steps):
-            # 3. Calculate absolute physical bounds for this step
-            step_start_x = start_x + (step_idx * step_run)
-            step_end_x = start_x + ((step_idx + 1) * step_run)
-            
-            # 4. Discretize independently to prevent truncation drift
-            start_idx = int(step_start_x / hf_resolution)
-            end_idx = int(step_end_x / hf_resolution)
-            
-            # Ensure we don't index out of bounds
-            end_idx = min(end_idx, ncol)
-            
-            # Apply the normalized height
-            heightfield_data[:, start_idx:end_idx] = current_height
-            
-            # Update height for the next step iteration
-            current_height += step_dir * step_height_delta
-    
-        start_x += 2.0
-        
-        for step_idx in range(num_steps, num_steps*2+1):
-            step_start_x = start_x + (step_idx * step_run)
-            step_end_x = start_x + ((step_idx + 1) * step_run)
-            
-            # 4. Discretize independently to prevent truncation drift
-            start_idx = int(step_start_x / hf_resolution)
-            end_idx = int(step_end_x / hf_resolution)
-            
-            # Ensure we don't index out of bounds
-            end_idx = min(end_idx, ncol)
-            
-            # Apply the normalized height
-            heightfield_data[:, start_idx:end_idx] = current_height
-            
-            # Update height for the next step iteration
-            current_height -= step_dir * step_height_delta
 
-        heightfield_data[-1, -1] = 1.0  # Forces max(H) to 1.0
-        heightfield_data[-1, -2] = 0.0  # Forces min(H) to 0.0
-
-        hfdata_flat = heightfield_data.flatten()
         self.spec.add_hfield(
             name='terrain',
             nrow=nrow,
@@ -596,6 +560,8 @@ class GenModel:
             pos=[0, 0, -0.75],
             material='hfield_material',
         ) 
+
+
 
     def add_obstacle_course(self,
                             ):
@@ -662,7 +628,7 @@ class GenModel:
 def main():
     walt = GenModel()
     walt.add_scene()
-    walt.add_hfield()
+    walt.add_stair_heightfield()
     walt.compile_to_xml('2DWalt.xml')
     
 

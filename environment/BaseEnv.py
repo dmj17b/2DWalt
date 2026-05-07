@@ -115,7 +115,6 @@ class BaseEnv(mjx_env.MjxEnv):
             "prev_action": jp.zeros(self.action_size),  # Initialize previous action to zeros
             "steps_since_cmd_change": jp.zeros(()),  # Counter for steps since last command change
             "steps_until_cmd_change": steps_until_cmd_change,  # Counter for steps until next command change
-            "knee_des_pos": jp.array([0.0, 0.0]),  # Desired knee positions 
             } 
 
         obs = self._get_obs(data, info)  # Get the initial observation
