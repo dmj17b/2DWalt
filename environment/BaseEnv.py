@@ -98,6 +98,7 @@ class BaseEnv(mjx_env.MjxEnv):
             "reward/body_z_vel": jp.zeros(()),
             "reward/body_pitch_vel": jp.zeros(()),
             "reward/action_smoothing": jp.zeros(()),
+            "reward/pitchover_penalty": jp.zeros(()),
             "train/episode_reward": jp.zeros(()),
             "train/episode_reward_err": jp.zeros(()),
         }
@@ -144,8 +145,8 @@ class BaseEnv(mjx_env.MjxEnv):
 
         # End episode if body pitch exceeds a certain threshold (encourages the robot to stay upright):
         done = jp.where(jp.abs(data.qpos[self.y_rot_qpos_addr]) > self.max_body_pitch, 1.0, 0.0)  # Check if body pitch exceeds threshold and set done flag accordingly
-        done_penalty = -self.reward_config.terminal_pitch * done  # Apply a penalty to the reward if the episode is done due to excessive body pitch
-        reward = reward + done_penalty  # Combine the step reward with the done penalty
+        
+        reward = reward
 
         
         return mjx_env.State(data, obs, reward, done, state.metrics, new_info)
@@ -207,6 +208,11 @@ class BaseEnv(mjx_env.MjxEnv):
         # Action smoothing:
         action_smoothing = -jp.sum(jp.square(action - info["prev_action"])) * self.reward_config.action_smoothing
 
+        # End episode if body pitch exceeds a certain threshold (encourages the robot to stay upright):
+        done = jp.where(jp.abs(data.qpos[self.y_rot_qpos_addr]) > self.max_body_pitch, 1.0, 0.0)  # Check if body pitch exceeds threshold and set done flag accordingly
+        done_penalty = -self.reward_config.terminal_pitch * done  # Apply a penalty to the reward if the episode is done due to excessive body pitch
+
+
         # Total reward
         episode_reward = task_reward + vel_tracking_reward + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + action_smoothing + joint_vel_penalty
 
@@ -217,6 +223,7 @@ class BaseEnv(mjx_env.MjxEnv):
         metrics["reward/vel_tracking"] = vel_tracking_reward
         metrics["reward/body_z_vel"] = z_vel_penalty
         metrics["reward/action_smoothing"] = action_smoothing
+        metrics["reward/pitchover_penalty"] = done_penalty
         metrics["train/episode_reward"] = episode_reward
 
         return episode_reward

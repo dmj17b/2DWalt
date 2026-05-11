@@ -26,24 +26,25 @@ class GenModel:
         }
 
         motor_params = {
-            'hip_kp': 100,
-            'hip_kd': 25,
+            'hip_kp': 150,
+            'hip_kd': 35,
             'hip_gear': 150,
-            'hip_armature': 0.4,
+            'hip_armature': 0.5,
             'hip_frictionloss': 0.1,
-            'knee_kp': 100,
-            'knee_kd': 25,
+            'knee_kp': 150,
+            'knee_kd': 35,
             'knee_gear': 150,
             'knee_armature': 0.4,
             'knee_frictionloss': 0.1,
-            'wheel_kp': 100,
-            'wheel_kd': 25,
+            'wheel_kp': 150,
+            'wheel_kd': 35,
             'wheel_gear': 70,
             'wheel_armature': 0.2,
             'wheel_frictionloss': 0.01,
         }
 
-        self.wheel_solref = [0.1, 0.5]  # Solref parameters for the wheel joints to improve contact stability
+        self.wheel_solref = [0.02, 1]  # Solref parameters for the wheel joints to improve contact stability
+        self.wheel_friction = [1.2, 0.005, 0.0002]  # Friction coefficient for the wheels to improve traction
 
         self.model_params = model_params
         self.motor_params = motor_params
@@ -149,6 +150,7 @@ class GenModel:
             contype = wheel_contype,
             conaffinity = wheel_conaffinity,
             solref = self.wheel_solref,
+            friction = self.wheel_friction,
         )
         front_wheel1.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
@@ -170,6 +172,7 @@ class GenModel:
             contype = wheel_contype,
             conaffinity = wheel_conaffinity,
             solref = self.wheel_solref,
+            friction = self.wheel_friction,
         )
         front_wheel2.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
@@ -234,6 +237,7 @@ class GenModel:
             contype = wheel_contype,
             conaffinity = wheel_conaffinity,
             solref = self.wheel_solref,
+            friction = self.wheel_friction,
         )
         rear_wheel1.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
@@ -255,6 +259,7 @@ class GenModel:
             contype = wheel_contype,
             conaffinity = wheel_conaffinity,
             solref = self.wheel_solref,
+            friction = self.wheel_friction,
         )
         rear_wheel2.add_joint(
             type = mujoco.mjtJoint.mjJNT_HINGE,
@@ -499,31 +504,55 @@ class GenModel:
 
     def add_stair_heightfield(self,):
 
-        nrow, ncol = 2, 1024
-        size = [20.0, 5.0, 5.0, 0.1]  # [x_half_size, y_half_size, z_max, z_bottom]
+        nrow, ncol = 2, 2048
+        size = [40.0, 5.0, 3.0, 0.1]  # [x_half_size, y_half_size, z_max, z_bottom]
         z_max = size[2]
         
         stairs = StairBuilder(size=size, nrow=nrow, ncol=ncol);
-        step_rise = 0.1
-        step_run = 0.2
-        num_steps = 20
-        start_height = (num_steps * step_rise) / z_max  # Start high enough to descend all steps
-        stairs.set_starting_height(start_height)
+        
+        # First Set of stairs: 0.1m rise, 0.3m run
+        step_rise = 1.0/10
+        step_run = 0.28
+        stairs.set_starting_height(1.0)
         stairs.add_flat(length = 5.0)  # Add a flat section at the beginning
-        stairs.add_stairs(rise=step_rise, run=step_run, num_steps=num_steps, direction=-1.0)  # Add descending stairs
+        stairs.add_stairs(rise=step_rise, run=step_run, direction=-1.0)  # Add descending stairs
         stairs.add_flat(length = 2.0)  # Add a flat section at the end
-        stairs.add_stairs(rise=step_rise, run=step_run, num_steps=num_steps, direction=1.0)  # Add ascending stairs
+        stairs.add_stairs(rise=step_rise, run=step_run, direction=1.0)  # Add ascending stairs
         stairs.add_flat(length = 2.0)  # Add a flat section at the end
-        stairs.add_stairs(rise = 0.2, run = 0.3, num_steps = 10, direction = -1.0) # Add some steeper stairs for good measure
-        stairs.add_flat(length = 2.0)  # Add a flat section at the end
-        stairs.add_stairs(rise = 0.2, run = 0.3, num_steps = 10, direction = 1.0) # Add some steeper stairs for good measure
-        stairs.add_flat(length = 2.0)  # Add a flat section at the end
-        stairs.add_stairs(rise = 0.25, run = 0.3, num_steps = 8, direction = -1.0) # Add some very steep stairs for good measure
-        stairs.add_flat(length = 2.0)  # Add a flat section at the end
-        stairs.add_stairs(rise = 0.25, run = 0.3, num_steps = 8, direction = 1.0) # Add some very steep stairs for good measure
-        stairs.add_flat(length = 10.0)
-        hfdata_flat = stairs.finalize()
 
+        # Second set of stairs
+        step_rise = 1.0/8
+        step_run = 0.28
+        stairs.add_stairs(rise = step_rise, run = step_run, direction = -1.0) # Add some steeper stairs for good measure
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+        stairs.add_stairs(rise = step_rise, run = step_run,  direction = 1.0) # Add some steeper stairs for good measure
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+
+        # Third set of stairs
+        step_rise = 1.0/6
+        step_run = 0.28
+        stairs.add_stairs(rise = step_rise, run = step_run,  direction = -1.0) # Add some very steep stairs for good measure
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+        stairs.add_stairs(rise = step_rise, run = step_run,  direction = 1.0) # Add some very steep stairs for good measure
+        stairs.add_flat(length = 2.0)
+
+        # Fourth set of stairs
+        step_rise = 1.0/4
+        step_run = 0.28
+        stairs.add_stairs(rise = step_rise, run = step_run, direction = -1.0) # Add some very steep stairs for good measure
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+        stairs.add_stairs(rise = step_rise, run = step_run, direction = 1.0) # Add some very steep stairs for good measure
+        stairs.add_flat(length = 2.0)  # Add a long flat section at the end to finish
+
+        # Fourth set of stairs
+        step_rise = 1.0/3
+        step_run = 0.28
+        stairs.add_stairs(rise = step_rise, run = step_run, direction = -1.0) # Add some very steep stairs for good measure
+        stairs.add_flat(length = 2.0)  # Add a flat section at the end
+        stairs.add_stairs(rise = step_rise, run = step_run, direction = 1.0) # Add some very steep stairs for good measure
+        stairs.add_flat(length = 10.0)  # Add a long flat section at the end to finish
+
+        hfdata_flat = stairs.finalize()
 
         self.spec.add_hfield(
             name='terrain',
@@ -563,11 +592,10 @@ class GenModel:
 
 
 
-    def add_obstacle_course(self,
-                            ):
+    def add_obstacle_course(self,):
         
         
-        nrow, ncol = 2, 4096
+        nrow, ncol = 2, 256
         size = [128.0, 10.0, 5.0, 0.1]  # [x_span, y_span, z_height, base_offset]
         # Add some random noise to the height field
         heightfield_data = np.zeros((nrow, ncol))

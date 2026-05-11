@@ -12,6 +12,7 @@ import jax.numpy as jp
 import pygame
 from pygame import joystick
 import environment.StairEnv as StairEnv  # Import the StairEnv environment class to test environment creation.
+import environment.CurriculumWrapper as CurriculumWrapper  # Import the CurriculumWrapper to test environment wrapping.
 pygame.init()
 
 print(jax.devices())
@@ -24,7 +25,8 @@ def main():
     hip_delta = 0.05  # Increment for hip position command when D-pad is pressed
 
     # Initialize the environment
-    env = StairEnv.StairEnv()  # Create an instance of the BoxEnv environment
+    env = StairEnv.StairEnv(challenge_level = 0)  # Create an instance of the BoxEnv environment
+    # env = CurriculumWrapper.CurriculumResetWrapper(env)  # Wrap the environment with the curriculum wrapper to enable automatic resets and curriculum state management
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions
@@ -34,7 +36,6 @@ def main():
     # Reset the environment to get initial state
     key, subkey = jax.random.split(key)
     state = reset_fn(subkey)
-    print(f"Commanded Velocity: {state.info['command']:.3f}")
 
     # Create standard CPU mj_data
     mj_data = mujoco.MjData(env._mj_model)
@@ -86,11 +87,11 @@ def main():
 
 
             state = step_fn(state, action)  # Step the environment
+            print(f"Commanded Velocity: {state.info['command']:.3f}")
 
             n_steps += 1
-            print(n_steps)
 
-            if n_steps > 1000:
+            if state.done:
                 key, subkey = jax.random.split(key)
                 state = reset_fn(subkey)  # Reset the environment after 2000 steps for testing purposes
                 n_steps = 0

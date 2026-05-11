@@ -23,23 +23,20 @@ import environment.BoxEnv as BoxEnv
 import environment.HFieldEnv as HFieldEnv
 import environment.FlatEnv as FlatEnv
 import environment.StairEnv as StairEnv
+import environment.CurriculumWrapper as CurriculumWrapper
     
 def main():
 
-    resume_path = "policies/walter_ppo_warp11"  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo_warp12"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/walter_ppo_warp9"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/walter_ppo_warp10"  # Path to save the new PPO model parameters after training
 
-    # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
-    # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
-    # env = BoxEnv.BoxEnv(difficulty=0.9, spacing=48)  # Create an instance of the BoxEnv environment
-    env = StairEnv.StairEnv(challenge_level=3)  # Create an instance of the StairEnv environment for stair climbing tasks
+    env = StairEnv.StairEnv(challenge_level = 0)  # Create an instance of the StairEnv environment for stair climbing tasks
     env_cfg = env.config  # Retrieve the environment configuration
     ppo_params = {
         'action_repeat': 1,
         'batch_size': 4096,  
         'discounting': 0.995,
         'entropy_cost': 0.01,
-        'episode_length': env_cfg.episode_length,
         'learning_rate': 3e-4,
         'num_envs': 4096,
         'num_evals': 20,  
@@ -49,6 +46,8 @@ def main():
         'normalize_observations': True,
         'reward_scaling': 1.0,
         'unroll_length': 32,
+        'episode_length': 5000,
+        
         }
 
     #---------- WandB logging setup ------------#
@@ -110,12 +109,10 @@ def main():
         network_factory = network_factory,
         progress_fn=progress,
     )
-    
     train_kwargs = dict(
         environment=env,
         wrap_env_fn=wrapper.wrap_for_brax_training,
     )
-
     # If a resume path is provided, load the parameters and pass them, otherwise start training from scratch
     if resume_path is not None and Path(resume_path).exists():
         print(f"Resuming PPO training from {resume_path}...")

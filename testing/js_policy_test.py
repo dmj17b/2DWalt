@@ -24,7 +24,7 @@ import environment.StairEnv as StairEnv
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo_warp10"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo_warp12"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()
@@ -37,7 +37,7 @@ def main():
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment
     # env = HFieldEnv.HFieldEnv(difficulty=0.1)  # Create an instance of the BoxEnv environment
     # env = BoxEnv.BoxEnv(difficulty = 0.9, spacing = 48) # Create an instance of the BoxEnv environment
-    env = StairEnv.StairEnv()  # Create an instance of the StairEnv environment for stair climbing tasks
+    env = StairEnv.StairEnv(challenge_level = 3)  # Create an instance of the StairEnv environment for stair climbing tasks
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 
     # JIT compile the reset and step functions
@@ -108,9 +108,9 @@ def main():
                 action = jit_inference_fn(state.obs, key)  # Get action from the PPO policy
 
             # If "done" - reset
-            if state.done:
-                key, subkey = jax.random.split(key)
-                state = reset_fn(subkey)
+            # if state.done:
+            #     key, subkey = jax.random.split(key)
+            #     state = reset_fn(subkey)
 
 
             state = step_fn(state, action[0])  # Step the environment

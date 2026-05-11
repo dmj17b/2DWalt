@@ -33,12 +33,13 @@ class StairBuilder:
         self.hf_data[:, start_idx:end_idx] = self.current_z_norm
         self.current_x += length
 
-    def add_stairs(self, rise, run, num_steps, direction):
+    def add_stairs(self, rise, run, direction):
         """
         direction: 1.0 for ascending, -1.0 for descending.
         Only requires local stair geometry parameters.
         """
         step_height_delta = rise / self.z_max
+        num_steps = int(1/step_height_delta)  # Calculate number of steps needed to reach z_max at the given rise
         
         for _ in range(num_steps):
             step_start_x = self.current_x

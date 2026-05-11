@@ -17,6 +17,7 @@ class RewardConfig:
     action_smoothing: float = 10.0
     terminal_pitch: float = 100.0
     joint_vel: float = 10.0
+    success_bonus: float = 1000.0
 
 @flax.struct.dataclass
 class CommandConfig:
@@ -25,11 +26,16 @@ class CommandConfig:
     max_cmd_duration: float = 3.0
     zero_cmd_prob: float = 0.1
 
+class StairCommandConfig(CommandConfig):
+    max_vel: float = 1.0  # Reduce max velocity for stair climbing tasks to encourage careful navigation
+    min_cmd_duration: float = 8.0  # Increase minimum command duration to encourage sustained commands for stair climbing
+    max_cmd_duration: float = 15.0  # Increase maximum command duration to allow for longer sustained commands during stair climbing
+
 def SimConfig() -> config_dict.ConfigDict:
     return config_dict.create(
         ctrl_dt = 0.02,
         sim_dt = 0.004,
-        episode_length = 1000,
+        episode_length = 3000,
         action_repeat = 1,
         impl = 'warp',
         naconmax = 10*4096,
