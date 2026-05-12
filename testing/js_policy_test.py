@@ -24,7 +24,7 @@ import environment.StairEnv as StairEnv
 print(jax.devices())
 
 def main():
-    model_path = "policies/walter_ppo_warp12"  # Path to the saved PPO model parameters
+    model_path = "policies/walter_ppo_warp13"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()

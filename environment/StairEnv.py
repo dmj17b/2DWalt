@@ -6,9 +6,10 @@ import jax  # Import JAX for numerical computing and random number generation.
 import jax.numpy as jp  # Import JAX's numpy as jp for array operations.
 from ml_collections import config_dict  # Import config_dict for configuration management.
 from mujoco_playground._src.dm_control_suite import common  # Import common utilities for dm_control_suite.
-from configs.env_config import (SimConfig, RewardConfig, StairCommandConfig)  # Import environment and reward configuration dataclasses.
+from configs.env_config import (SimConfig, StairRewardConfig, StairCommandConfig)  # Import environment and reward configuration dataclasses.
 import environment.BaseEnv as BaseEnv  # Import the base environment class to inherit from.
 from mujoco_playground._src import mjx_env  # Import custom environment base class.
+from mujoco import mjx
 
 class StairEnv(BaseEnv.BaseEnv):
     """Stair terrain environment for the 2D Walt robot."""
@@ -16,7 +17,7 @@ class StairEnv(BaseEnv.BaseEnv):
     def __init__(
             self,
             sim_config: SimConfig = SimConfig(),
-            reward_config: RewardConfig = RewardConfig(),
+            reward_config: StairRewardConfig = StairRewardConfig(),
             command_config: StairCommandConfig = StairCommandConfig(),
             challenge_level: int = 0,
     ):
@@ -70,7 +71,9 @@ class StairEnv(BaseEnv.BaseEnv):
             "reward/body_z_vel": jp.zeros(()),
             "reward/body_pitch_vel": jp.zeros(()),
             "reward/action_smoothing": jp.zeros(()),
-            "reward/pitchover_penalty": jp.zeros(()), # ADD THIS LINE
+            "reward/pitchover_penalty": jp.zeros(()),
+            "reward/x_pos_reward": jp.zeros(()),
+            "reward/z_pos_reward": jp.zeros(()),
             "train/episode_reward": jp.zeros(()),
             "train/episode_reward_err": jp.zeros(()),
         }
@@ -97,7 +100,7 @@ class StairEnv(BaseEnv.BaseEnv):
         
         obs = self._get_obs(data, state.info)  # Get the observation after the step
 
-        reward = self._get_reward(data, action, state.info, state.metrics)  # Compute the reward
+        reward, metrics = self._get_reward(data, action, state.info, state.metrics)  # Compute the reward
         new_info = self._maybe_update_cmd(state.info)  # Maybe update the command and reset the counter if needed
         new_info["prev_action"] = action  # Update the previous action in the info dictionary for use in the next step
 
@@ -110,10 +113,77 @@ class StairEnv(BaseEnv.BaseEnv):
 
 
 
+
         reward = reward + success_reward  # Combine the step reward with the done penalty
         
-        return mjx_env.State(data, obs, reward, done, state.metrics, new_info)
+        return mjx_env.State(data, obs, reward, done, metrics, new_info)
     
+ # Calculates reward based on the current state and action.
+    def _get_reward(self,
+                    data: mjx.Data,
+                    action: jax.Array,
+                    info: Dict[str, Any],
+                    metrics: dict[str, Any],
+    ) -> jax.Array:
+        # Reward for tracking the commanded velocity:
+        body_frame_x_vel = data.sensordata[0]
+        vel_tracking_reward = self.tracking_reward(info["command"], body_frame_x_vel, sigma=0.2)*self.reward_config.vel_tracking 
+
+
+        # Penalty for deviating too far from zero body pitch:
+        body_pitch = data.qpos[self.y_rot_qpos_addr]  # Get the pitch of the body
+        body_pitch_penalty = jp.exp(-self.reward_config.body_pitch*jp.square(body_pitch))  # Alternative: Exponential penalty for body pitch angle, scaled by reward_config
+
+        task_reward = vel_tracking_reward*body_pitch_penalty  # Combine velocity tracking reward with exponential body pitch penalty 
+
+
+        body_pitch_vel = data.qvel[self.y_rot_qpos_addr]  # Get the angular velocity of the body pitch
+        body_pitch_vel_penalty = -self.reward_config.body_pitch_vel*jp.square(body_pitch_vel)  # Quadratic penalty for body pitch velocity, scaled by reward_config
+
+        # Penalty for body z-velocity change (encourages maintaining consistent height):
+        z_vel = data.sensordata[2]  # Get the vertical velocity in body frame
+        z_vel_penalty = -self.reward_config.body_z_vel*jp.square(z_vel)  # Quadratic penalty for vertical velocity, scaled by reward_config
+
+        
+        joint_vel_penalty = jp.where(jp.abs(info["command"]) < 0.1, -self.reward_config.joint_vel * jp.sum(jp.square(data.qvel)), 0.0)  # Apply joint velocity penalty only when the velocity command is close to zero
+
+        # Penalize work
+        joint_torques = data.qfrc_actuator[3:]  # Get the actuator forces
+        low_torques_reward = -jp.sum(jp.square(joint_torques))*self.reward_config.low_torques  # Reward low torque usage
+
+
+        # Action smoothing:
+        action_smoothing = -jp.sum(jp.square(action - info["prev_action"])) * self.reward_config.action_smoothing
+
+        # End episode if body pitch exceeds a certain threshold (encourages the robot to stay upright):
+        done = jp.where(jp.abs(data.qpos[self.y_rot_qpos_addr]) > self.max_body_pitch, 1.0, 0.0)  # Check if body pitch exceeds threshold and set done flag accordingly
+        done_penalty = -self.reward_config.terminal_pitch * done  # Apply a penalty to the reward if the episode is done due to excessive body pitch
+
+        # Reward for any change in x position (encourages forward progress):
+        start_x = self.spawn_points[self.challenge_level, 0]
+        x_change = data.qpos[self.x_slide_qpos_addr] - start_x  # Calculate change in x position from the starting point
+        x_pos_reward = self.reward_config.pos_reward * jp.square(x_change)  # Reward for forward progress
+
+        # Reward for any change in z position (encourages upward progress):
+        z_pos_reward = self.reward_config.pos_reward * data.qpos[self.z_slide_qpos_addr]  # Reward for maintaining a higher position (encourages climbing)
+
+        # Total reward
+        episode_reward = vel_tracking_reward + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + action_smoothing + joint_vel_penalty + x_pos_reward + done_penalty + z_pos_reward
+
+        metrics["reward/task"] = task_reward
+        metrics["reward/body_pitch"] = body_pitch_penalty
+        metrics["reward/body_pitch_vel"] = body_pitch_vel_penalty
+        metrics["reward/low_torques"] = low_torques_reward
+        metrics["reward/vel_tracking"] = vel_tracking_reward
+        metrics["reward/body_z_vel"] = z_vel_penalty
+        metrics["reward/action_smoothing"] = action_smoothing
+        metrics["reward/pitchover_penalty"] = done_penalty
+        metrics["reward/x_pos_reward"] = x_pos_reward
+        metrics["reward/z_pos_reward"] = z_pos_reward
+        metrics["train/episode_reward"] = episode_reward
+
+
+        return episode_reward, metrics
 
     
     def _add_terrain(self):
@@ -136,7 +206,7 @@ class StairEnv(BaseEnv.BaseEnv):
     def check_success(self, data) -> bool:
         """Checks if the robot has successfully climbed the stairs."""
         # Define success as having an z position greater than a certain threshold (e.g., reaching the top of the stairs)
-        success_threshold = 1.8  # This threshold can be adjusted based on the stair layout
+        success_threshold = 1.9  # This threshold can be adjusted based on the stair layout
         return data.qpos[self.z_slide_qpos_addr] > success_threshold
     
     def check_failure(self, data) -> bool:

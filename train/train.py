@@ -26,8 +26,8 @@ import environment.StairEnv as StairEnv
     
 def main():
 
-    resume_path = "policies/walter_ppo_warp11"  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo_warp12"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/walter_ppo_warp10"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/walter_ppo_warp11"  # Path to save the new PPO model parameters after training
 
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
     # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
@@ -76,15 +76,9 @@ def main():
             print("Available Metric Keys:", list(metrics.keys()))
 
         print(f"\nEvaluation #{progress.eval_counter}:")
-        print(f"Steps: {num_steps}")
-        print(f"Task reward: {metrics.get('eval/episode_reward/task', 0.0):.4f}")
-        print(f"Velocity tracking reward: {metrics.get('eval/episode_reward/vel_tracking', 0.0):.4f}")
-        print(f"Body pitch penalty: {metrics.get('eval/episode_reward/body_pitch', 0.0):.4f}")
-        print(f"Body pitch velocity penalty: {metrics.get('eval/episode_reward/body_pitch_vel', 0.0):.4f}")
-        print(f"Body z velocity penalty: {metrics.get('eval/episode_reward/body_z_vel', 0.0):.4f}")
-        print(f"Torque Penalty: {metrics.get('eval/episode_reward/low_torques', 0.0):.6f}")
-        print(f"Action smoothing penalty: {metrics.get('eval/episode_reward/action_smoothing', 0.0):.6f}")
-        print(f"Total reward: {metrics.get('eval/episode_reward', 0.0):.4f}")
+        # Print all metrics for debugging:
+        for key, value in metrics.items():
+            print(f"{key}: {value:.4f}")
 
         wandb_metrics = {k: _to_float(v) for k, v in metrics.items()}
         wandb_metrics = {k: v for k, v in wandb_metrics.items() if v is not None}
@@ -130,13 +124,13 @@ def main():
             **train_kwargs
         )
 
-    run.finish()  # Finish the WandB run after training is complete
-    print(f"\nFinal metrics: {metrics}")
+
 
     # Save the trained policy parameters and metrics:
     model.save_params(save_path, params)
 
-
+    run.finish()  # Finish the WandB run after training is complete
+    print(f"\nFinal metrics: {metrics}")
 
 if __name__ == "__main__":
     main()  

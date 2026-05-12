@@ -87,8 +87,7 @@ def main():
 
 
             state = step_fn(state, action)  # Step the environment
-            print(f"Commanded Velocity: {state.info['command']:.3f}")
-
+            print(f"X Pos Reward: {state.metrics['reward/x_pos_reward']:.4f}\nZ Pos Reward: {state.metrics['reward/z_pos_reward']:.4f}\nTotal Reward: {state.metrics['train/episode_reward']:.4f}")
             n_steps += 1
 
             if state.done:

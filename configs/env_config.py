@@ -19,6 +19,17 @@ class RewardConfig:
     joint_vel: float = 10.0
     success_bonus: float = 1000.0
 
+class StairRewardConfig(RewardConfig):
+    body_pitch: float = 12.0  # Increase the weight on body pitch to encourage the agent to maintain an upright posture while climbing stairs
+    body_pitch_vel: float = 15.0  # Increase the weight on body pitch velocity to encourage smoother and more controlled movements during stair climbing
+    low_torques: float = 0.001  # Increase the penalty for high torques to encourage more efficient and careful movements on stairs
+    body_z_vel: float = 15.0  # Increase the weight on vertical velocity to encourage the agent to focus on upward movement when climbing stairs
+    height_penalty: float = 20.0  # Increase the penalty for low height to encourage the agent to maintain a higher position while climbing stairs
+    terminal_pitch: float = 150.0  # Increase the penalty for falling over to strongly discourage the agent from losing balance on stairs
+    success_bonus: float = 1500.0  # Increase the success bonus to provide a stronger incentive for successfully climbing the stairs
+    pos_reward: float = 10.0  # Add a reward for forward progress
+    
+
 @flax.struct.dataclass
 class CommandConfig:
     max_vel: float = 1.5
@@ -28,8 +39,8 @@ class CommandConfig:
 
 class StairCommandConfig(CommandConfig):
     max_vel: float = 1.0  # Reduce max velocity for stair climbing tasks to encourage careful navigation
-    min_cmd_duration: float = 8.0  # Increase minimum command duration to encourage sustained commands for stair climbing
-    max_cmd_duration: float = 15.0  # Increase maximum command duration to allow for longer sustained commands during stair climbing
+    min_cmd_duration: float = 29.0  # Increase minimum command duration to encourage sustained commands for stair climbing
+    max_cmd_duration: float = 30.0  # Increase maximum command duration to allow for longer sustained commands during stair climbing
 
 def SimConfig() -> config_dict.ConfigDict:
     return config_dict.create(
