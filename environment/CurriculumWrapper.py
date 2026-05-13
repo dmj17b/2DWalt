@@ -2,7 +2,7 @@ from brax.envs.base import Env, Wrapper
 import jax
 import jax.numpy as jp
 
-class CurriculumResetWrapper(Wrapper):
+class CurriculumWrapper(Wrapper):
     """Automatically resets the environment while ferrying the curriculum state."""
     
     def step(self, state, action):
