@@ -25,7 +25,7 @@ def main():
     hip_delta = 0.05  # Increment for hip position command when D-pad is pressed
 
     # Initialize the environment
-    env = StairEnv.StairEnv(challenge_level = 0)  # Create an instance of the BoxEnv environment
+    env = StairEnv.StairEnv(challenge_level = 1)  # Create an instance of the BoxEnv environment
     # env = CurriculumWrapper.CurriculumResetWrapper(env)  # Wrap the environment with the curriculum wrapper to enable automatic resets and curriculum state management
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
 

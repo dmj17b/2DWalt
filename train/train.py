@@ -26,8 +26,8 @@ import environment.StairEnv as StairEnv
     
 def main():
 
-    resume_path = "policies/walter_ppo_warp10"  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo_warp11"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/walter_ppo_stairs4"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/walter_ppo_stairs5"  # Path to save the new PPO model parameters after training
 
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
     # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
@@ -38,9 +38,9 @@ def main():
         'action_repeat': 1,
         'batch_size': 4096,  
         'discounting': 0.995,
-        'entropy_cost': 0.01,
+        'entropy_cost': 0.001,
         'episode_length': env_cfg.episode_length,
-        'learning_rate': 3e-4,
+        'learning_rate': 1e-5,
         'num_envs': 4096,
         'num_evals': 20,  
         'num_minibatches': 32,
