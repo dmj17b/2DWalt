@@ -1,4 +1,6 @@
 # Priorities
+- Visualization rollout methods
+- Try out different wrappers for handling curriculum logic
 - Organize config files!!!
 - Figure out how backend rollouts work
 - Normalize rewards to start at zero
@@ -8,13 +10,7 @@
 
 
 # Algorithm Tuning TODOs
-- Add stair heightfield environment
 - Figure out how to define/execute curriculums
-- Add in standstill penalties for zero velocity commands (learn how to stay still)
-- (Maybe) Penalize deviation from 'standard' hip/knee angles?
-- Add difficulty to box environment (vary max height)
-- Increase spacing between box obstacles so the policy still learns flat ground
-- Optimize number of minibatches, batch size, and unroll length (look into optimal sim time step as well)
 
 # Code Cleanup TODOs:
 - Add reward configs to wandb
