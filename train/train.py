@@ -29,15 +29,19 @@ import environment.StairEnv as StairEnv
     
 def main():
 
-    resume_path = "policies/walter_ppo_stairs4"  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo_stairs5"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/walter_ppo_stairs6"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/walter_ppo_stairs7"  # Path to save the new PPO model parameters after training
 
     notes = "Trying out curriculum training with new wrapper"
 
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
     # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
     # env = BoxEnv.BoxEnv(difficulty=0.9, spacing=48)  # Create an instance of the BoxEnv environment
-    env = StairEnv.StairEnv(challenge_level=0)  # Create an instance of the StairEnv environment for stair climbing tasks
+    env = StairEnv.StairEnv(challenge_level=2)  # Create an instance of the StairEnv environment for stair climbing tasks
+
+    # wrapper_fn = wrapper.wrap_for_brax_training  # Use the standard Brax wrapper for training
+    wrapper_fn = CurriculumWrapper.wrap_for_curriculum_training  # Use the custom curriculum wrapper for training
+
     env_cfg = env.config  # Retrieve the environment configuration
     ppo_params = {
         'action_repeat': 1,
@@ -54,6 +58,7 @@ def main():
         'normalize_observations': True,
         'reward_scaling': 1.0,
         'unroll_length': 32,
+        'deterministic_eval': True,
         }
 
     #---------- WandB logging setup ------------#
@@ -68,7 +73,6 @@ def main():
         "env_config": env_cfg,
         "notes": notes,
     }
-    wandb_config = dict(ppo_params)
     run = wandb.init(project=project, config=wandb_config)
 
 
@@ -121,7 +125,7 @@ def main():
     
     train_kwargs = dict(
         environment=env,
-        wrap_env_fn=wrapper.wrap_for_brax_training
+        wrap_env_fn=wrapper_fn,  # Use the appropriate wrapper function for training
     )
 
     # If a resume path is provided, load the parameters and pass them, otherwise start training from scratch

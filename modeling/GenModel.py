@@ -44,7 +44,7 @@ class GenModel:
         }
 
         self.wheel_solref = [0.02, 1]  # Solref parameters for the wheel joints to improve contact stability
-        self.wheel_friction = [1.2, 0.005, 0.0002]  # Friction coefficient for the wheels to improve traction
+        self.wheel_friction = [1.5, 0.005, 0.0002]  # Friction coefficient for the wheels to improve traction
 
         self.model_params = model_params
         self.motor_params = motor_params
@@ -454,7 +454,7 @@ class GenModel:
         
         # Add a heightfield to the environment for testing using perlin noise:
         nrow, ncol = 2, 1024
-        size = [30.0, 10.0, max_height*difficulty, 0.1]  # [x_span, y_span, z_height, base_offset]
+        size = [30.0, 3.0, max_height*difficulty, 0.1]  # [x_span, y_span, z_height, base_offset]
         # Add some random noise to the height field
         heightfield_data = np.zeros((nrow, ncol))
         

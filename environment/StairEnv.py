@@ -152,7 +152,8 @@ class StairEnv(BaseEnv.BaseEnv):
         obs = self._get_obs(data, state.info)  # Get the observation after the step
 
         reward, metrics = self._get_reward(data, action, state.info, state.metrics)  # Compute the reward
-        new_info = self._maybe_update_cmd(state.info)  # Maybe update the command and reset the counter if needed
+        # new_info = self._maybe_update_cmd(state.info)  # Maybe update the command and reset the counter if needed
+        new_info = dict(state.info)  # Start with the existing info dictionary
         new_info["prev_action"] = action  # Update the previous action in the info dictionary for use in the next step
 
         # Failure condition: if the robot's body pitch exceeds a certain threshold, the episode is done.
