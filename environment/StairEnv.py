@@ -27,7 +27,7 @@ class StairEnv(BaseEnv.BaseEnv):
         spawn3 = jp.array([9.5, 0.0, 0.0])
         spawn4 = jp.array([22.0, 0.0, 0.0])
         spawn5 = jp.array([31.7, 0.0, 0.0])
-        self.challenge_level = challenge_level  # Initialize the challenge level for curriculum learning, which determines the starting position on the stairs.
+        self.starting_challenge_level = challenge_level  # Initialize the starting challenge level for curriculum learning, which determines the starting position on the stairs.
     
         self.spawn_points = jp.stack([spawn1, spawn2, spawn3, spawn4, spawn5], axis=0)  # Define spawn points for the robot on the stair terrain.
         # Stair terrain parameters:
@@ -47,7 +47,7 @@ class StairEnv(BaseEnv.BaseEnv):
             "prev_action": jp.zeros(self.action_size),  # Initialize previous action to zeros
             "steps_since_cmd_change": jp.zeros(()),  # Counter for steps since last command change
             "steps_until_cmd_change": steps_until_cmd_change,  # Counter for steps until next command change
-            "challenge_level": self.challenge_level,
+            "challenge_level": self.starting_challenge_level,
         } 
 
         qpos = self._reset_model_pos(info)  # Reset the model's position based on the challenge level
@@ -84,6 +84,57 @@ class StairEnv(BaseEnv.BaseEnv):
         obs = self._get_obs(data, info)  # Get the initial observation
 
         return mjx_env.State(data, obs, reward, done, metrics, info)
+    
+    def level_reset(self, rng: jax.Array, challenge_level: int) -> mjx_env.State:
+        """Resets the environment to an initial state based on the provided challenge level."""
+        rng, terrain_rng, pos_rng, vel_rng, command_rng = jax.random.split(rng, 5)
+
+        command = self.sample_command(command_rng)  # Sample an initial command for the environment
+        steps_until_cmd_change = jax.random.randint(command_rng, (), self.min_steps_per_command, self.max_steps_per_command + 1)  # Sample the number of steps until the next command change
+
+        info = {
+            "rng": rng,
+            "command": command,
+            "prev_action": jp.zeros(self.action_size),  # Initialize previous action to zeros
+            "steps_since_cmd_change": jp.zeros(()),  # Counter for steps since last command change
+            "steps_until_cmd_change": steps_until_cmd_change,  # Counter for steps until next command change
+            "challenge_level": challenge_level,
+        } 
+
+        qpos = self._reset_model_pos(info)  # Reset the model's position based on the challenge level
+        qvel = self._reset_model_vel(vel_rng)  # Reset the model's velocities
+        mocap_pos = self._reset_terrain(terrain_rng)  # Randomize terrain by setting mocap bodies to new positions
+
+        data = mjx_env.make_data(
+            self.model,
+            qpos=qpos,
+            qvel=qvel,
+            mocap_pos=mocap_pos, 
+            impl = self._config.impl,
+            naconmax=self._config.naconmax,
+        )
+
+        metrics = {
+            "reward/task": jp.zeros(()),
+            "reward/body_pitch": jp.zeros(()),
+            "reward/low_torques": jp.zeros(()),
+            "reward/vel_tracking": jp.zeros(()),
+            "reward/body_z_vel": jp.zeros(()),
+            "reward/body_pitch_vel": jp.zeros(()),
+            "reward/action_smoothing": jp.zeros(()),
+            "reward/pitchover_penalty": jp.zeros(()),
+            "reward/x_pos_reward": jp.zeros(()),
+            "reward/z_pos_reward": jp.zeros(()),
+            "train/episode_reward": jp.zeros(()),
+            "train/episode_reward_err": jp.zeros(()),
+        }
+
+        reward = jp.zeros(())  # Scalar reward
+        done = jp.zeros(())  # Scalar done flag
+
+        obs = self._get_obs(data, info)
+        return mjx_env.State(data, obs, reward, done, metrics, info)
+
     # Defines a forward step in the environment given the current state and action.
     # Also computes the resulting observation, reward, done flag, and metrics.
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
@@ -111,7 +162,11 @@ class StairEnv(BaseEnv.BaseEnv):
         done = jp.where(self.check_success(data), 1.0, done) 
         success_reward = jp.where(self.check_success(data), self.reward_config.success_bonus, 0.0)  # Get the success bonus if the success condition is met
 
-
+        # Increment challenge level depending on success or failure:
+        level = jp.where(self.check_success(data), state.info["challenge_level"] + 1, state.info["challenge_level"])  # Increment challenge level if successful
+        level = jp.where(jp.abs(data.qpos[self.y_rot_qpos_addr]) > self.max_body_pitch, state.info["challenge_level"] - 1, level)  # Decrement challenge level if failed due to excessive body pitch
+        level = jp.clip(level, 0, self.spawn_points.shape[0] - 1)  # Ensure challenge level stays within valid range
+        new_info["challenge_level"] = level  # Update the challenge level in the info dictionary
 
 
         reward = reward + success_reward  # Combine the step reward with the done penalty
@@ -160,7 +215,7 @@ class StairEnv(BaseEnv.BaseEnv):
         done_penalty = -self.reward_config.terminal_pitch * done  # Apply a penalty to the reward if the episode is done due to excessive body pitch
 
         # Reward for any change in x position (encourages forward progress):
-        start_x = self.spawn_points[self.challenge_level, 0]
+        start_x = self.spawn_points[info.get("challenge_level"), 0]
         x_change = data.qpos[self.x_slide_qpos_addr] - start_x  # Calculate change in x position from the starting point
         x_pos_reward = self.reward_config.pos_reward * jp.square(x_change)  # Reward for forward progress
 
@@ -168,7 +223,7 @@ class StairEnv(BaseEnv.BaseEnv):
         z_pos_reward = self.reward_config.pos_reward * data.qpos[self.z_slide_qpos_addr]  # Reward for maintaining a higher position (encourages climbing)
 
         # Total reward
-        episode_reward = vel_tracking_reward + body_pitch_vel_penalty + z_vel_penalty + low_torques_reward + action_smoothing + joint_vel_penalty + x_pos_reward + done_penalty + z_pos_reward
+        episode_reward = vel_tracking_reward + body_pitch_vel_penalty + low_torques_reward + action_smoothing + joint_vel_penalty + x_pos_reward + done_penalty + z_pos_reward
 
         metrics["reward/task"] = task_reward
         metrics["reward/body_pitch"] = body_pitch_penalty

@@ -2,7 +2,10 @@ import os
 import sys
 
 from wandb.util import np
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
+from environment import CurriculumWrapper
+
 import jax
 import jax.numpy as jp
 import mujoco as mj
@@ -29,10 +32,12 @@ def main():
     resume_path = "policies/walter_ppo_stairs4"  # Path to the saved PPO model parameters to resume training from
     save_path = "policies/walter_ppo_stairs5"  # Path to save the new PPO model parameters after training
 
+    notes = "Trying out curriculum training with new wrapper"
+
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
     # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
     # env = BoxEnv.BoxEnv(difficulty=0.9, spacing=48)  # Create an instance of the BoxEnv environment
-    env = StairEnv.StairEnv(challenge_level=3)  # Create an instance of the StairEnv environment for stair climbing tasks
+    env = StairEnv.StairEnv(challenge_level=0)  # Create an instance of the StairEnv environment for stair climbing tasks
     env_cfg = env.config  # Retrieve the environment configuration
     ppo_params = {
         'action_repeat': 1,
@@ -54,6 +59,15 @@ def main():
     #---------- WandB logging setup ------------#
     wandb.login()
     project = "2DWalt_PPO"
+    reward_config = env.reward_config
+    command_config = env.command_config
+    wandb_config = {
+        "ppo_params": ppo_params,
+        "reward_config": reward_config,
+        "command_config": command_config,
+        "env_config": env_cfg,
+        "notes": notes,
+    }
     wandb_config = dict(ppo_params)
     run = wandb.init(project=project, config=wandb_config)
 
@@ -107,7 +121,7 @@ def main():
     
     train_kwargs = dict(
         environment=env,
-        wrap_env_fn=wrapper.wrap_for_brax_training,
+        wrap_env_fn=wrapper.wrap_for_brax_training
     )
 
     # If a resume path is provided, load the parameters and pass them, otherwise start training from scratch

@@ -26,10 +26,12 @@ def main():
 
     # Initialize the environment
     env = StairEnv.StairEnv(challenge_level = 1)  # Create an instance of the BoxEnv environment
-    # env = CurriculumWrapper.CurriculumResetWrapper(env)  # Wrap the environment with the curriculum wrapper to enable automatic resets and curriculum state management
-    key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
+    # env = CurriculumWrapper.CurriculumWrapper(env)  # Wrap the environment with the curriculum wrapper to enable automatic resets and curriculum state management
+    # env = CurriculumWrapper.wrap_for_curriculum_training(env)  # Wrap the environment with the curriculum wrapper to enable automatic resets and curriculum state management
+    env = CurriculumWrapper.CurriculumWrapper(env)  # Wrap the environment with the curriculum wrapper to enable automatic resets and curriculum state management
 
     # JIT compile the reset and step functions
+    key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
     reset_fn = jax.jit(env.reset)
     step_fn = jax.jit(env.step)
 
