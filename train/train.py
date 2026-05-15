@@ -30,7 +30,7 @@ import environment.StairEnv as StairEnv
 def main():
 
     resume_path = None  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/walter_ppo_stairs_fromScratch"  # Path to save the new PPO model parameters after training
+    save_path = "policies/scratchStairs2"  # Path to save the new PPO model parameters after training
 
     notes = "Trying out curriculum training with new wrapper"
 
@@ -51,10 +51,10 @@ def main():
         'episode_length': env_cfg.episode_length,
         'learning_rate': 3e-4,
         'num_envs': 4096,
-        'num_evals': 50,  
+        'num_evals': 25,
         'num_minibatches': 32,
         'num_updates_per_batch': 4,
-        'num_timesteps': 1_000_000_000,  
+        'num_timesteps': 250_000_000,
         'normalize_observations': True,
         'reward_scaling': 1.0,
         'unroll_length': 32,
