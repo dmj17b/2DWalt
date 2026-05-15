@@ -13,9 +13,6 @@
 - Figure out how to define/execute curriculums
 
 # Code Cleanup TODOs:
-- Add reward configs to wandb
-- Refactor config inclusions for better reusability
-    - Add environment, reward, and command configs to WandB so I remember what has changed
 - (Eventually) add distance sensors at front and rear of body
 
 
@@ -25,6 +22,7 @@
 
 # Need to understand better:
 - Cement understanding of policy rollouts, network updates, etc.
+- Environment wrappers and vectorization
 
 # Organization:
 - Model
