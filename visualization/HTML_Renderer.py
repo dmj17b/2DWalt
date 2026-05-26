@@ -9,13 +9,13 @@ import sys
 from pathlib import Path
 from typing import Callable, Tuple, List, Optional
 
+import brax
 import jax
 import jax.numpy as jp
 import mujoco
 import numpy as np
-from brax.base import Env, State
+from brax.base import State
 from brax.io import html, mjcf
-from brax.training.types import PolicyFn
 
 
 class HTMLRenderer:
@@ -28,7 +28,7 @@ class HTMLRenderer:
     
     def __init__(
         self,
-        env: Env,
+        env,
         render_dir: Optional[str] = None,
         episode_length: Optional[int] = None,
     ):
@@ -62,7 +62,7 @@ class HTMLRenderer:
     def unroll_policy_trajectory(
         self,
         state: State,
-        policy: PolicyFn,
+        policy,
         key: jax.Array,
         num_steps: Optional[int] = None,
     ) -> Tuple[State, Tuple[jax.Array, jax.Array, jax.Array]]:
@@ -128,7 +128,9 @@ class HTMLRenderer:
         
         # Create base data structure
         data = mujoco.mjx.make_data(self.mj_model)
-        
+        contact = brax.mjx.pipeline._reformat_contact(
+            self.sys, data.contact,
+        )
         state_list = []
         num_steps = qpos.shape[0]
         
@@ -138,11 +140,11 @@ class HTMLRenderer:
             body_start = 1 if xpos.shape[-1] > len(xpos[i]) else 0
             
             state = State(
-                qpos=qpos[i],
+                q=qpos[i],
                 qd=np.zeros(self.mj_model.nv),
-                xpos=xpos[i],
-                xquat=xquat[i],
-                data=data,
+                x = brax.base.Transform(pos = xpos[i][1:], rot = xquat[i][1:]),
+                xd = brax.base.Motion(vel = np.zeros_like(data.cvel[1:, 3:]), ang = np.zeros_like(data.cvel[1:, :3])),
+                contact = contact
             )
             state_list.append(state)
         
