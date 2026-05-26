@@ -9,7 +9,7 @@ from brax.envs.wrappers import training as brax_training
 
 def wrap_for_curriculum_training(
     env: mjx_env.MjxEnv,
-    episode_length: int = 1000,
+    episode_length: int = 10000,
     action_repeat: int = 1,
     randomization_fn: Optional[
         Callable[[mjx.Model], Tuple[mjx.Model, mjx.Model]]

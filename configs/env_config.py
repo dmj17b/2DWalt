@@ -20,14 +20,14 @@ class RewardConfig:
     success_bonus: float = 1000.0
 
 class StairRewardConfig(RewardConfig):
-    body_pitch: float = 12.0  # Increase the weight on body pitch to encourage the agent to maintain an upright posture while climbing stairs
-    body_pitch_vel: float = 15.0  # Increase the weight on body pitch velocity to encourage smoother and more controlled movements during stair climbing
-    low_torques: float = 0.001  # Increase the penalty for high torques to encourage more efficient and careful movements on stairs
-    body_z_vel: float = 15.0  # Increase the weight on vertical velocity to encourage the agent to focus on upward movement when climbing stairs
-    height_penalty: float = 20.0  # Increase the penalty for low height to encourage the agent to maintain a higher position while climbing stairs
-    terminal_pitch: float = 150.0  # Increase the penalty for falling over to strongly discourage the agent from losing balance on stairs
-    success_bonus: float = 1500.0  # Increase the success bonus to provide a stronger incentive for successfully climbing the stairs
-    pos_reward: float = 10.0  # Add a reward for forward progress
+    body_pitch: float = 12.0  # Weight on body pitch to encourage the agent to maintain an upright posture while climbing stairs
+    body_pitch_vel: float = 15.0  # Weight on body pitch velocity to encourage smoother and more controlled movements during stair climbing
+    low_torques: float = 0.001  # Penalty for high torques to encourage more efficient and careful movements on stairs
+    body_z_vel: float = 15.0  # Weight on vertical velocity to encourage the agent to focus on upward movement when climbing stairs
+    height_penalty: float = 20.0  # Penalty for low height to encourage the agent to maintain a higher position while climbing stairs
+    terminal_pitch: float = 150.0  # Penalty for falling over to strongly discourage the agent from losing balance on stairs
+    success_bonus: float = 1500.0  # Success bonus to provide a stronger incentive for successfully climbing the stairs
+    pos_reward: float = 10.0  # Reward for forward progress
     
 
 @flax.struct.dataclass
@@ -46,7 +46,7 @@ def SimConfig() -> config_dict.ConfigDict:
     return config_dict.create(
         ctrl_dt = 0.02,
         sim_dt = 0.004,
-        episode_length = 3000,
+        episode_length = 10000,
         action_repeat = 1,
         impl = 'warp',
         naconmax = 10*4096,

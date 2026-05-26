@@ -13,6 +13,9 @@ from brax.base import State, System, Env
 from typing import Sequence, Tuple, List
 
 
+def policy_render_callback():
+    pass
+
 def policy_step(
     env: Env,
     state: State,

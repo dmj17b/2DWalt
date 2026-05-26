@@ -22,26 +22,32 @@ from mujoco_playground import wrapper
 import inspect
 from pathlib import Path
 import wandb
+import visualization.HTML_Renderer as HTML_Renderer
 import environment.BoxEnv as BoxEnv
 import environment.HFieldEnv as HFieldEnv
 import environment.FlatEnv as FlatEnv
 import environment.StairEnv as StairEnv
-import visualization.HTML_Renderer as Renderer
+
     
 def main():
 
-    resume_path = None  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/scratchStairs2"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/stairs"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/stairs2"  # Path to save the new PPO model parameters after training
 
-    notes = "Testing visualization of trajectories with the HTML renderer"
+    notes = "Got rid of xpos reward and zpos reward. Increased learning rate. Changed to start at challenge level 2 since that's where previous agent failed"
 
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
     # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
     # env = BoxEnv.BoxEnv(difficulty=0.9, spacing=48)  # Create an instance of the BoxEnv environment
-    env = StairEnv.StairEnv(challenge_level=0)  # Create an instance of the StairEnv environment for stair climbing tasks
+    env = StairEnv.StairEnv(challenge_level=2)  # Create an instance of the StairEnv environment for stair climbing tasks
 
     # wrapper_fn = wrapper.wrap_for_brax_training  # Use the standard Brax wrapper for training
     wrapper_fn = CurriculumWrapper.wrap_for_curriculum_training  # Use the custom curriculum wrapper for training
+
+    # Visualization stuff:
+    html_renderer = HTML_Renderer.HTML_Renderer()
+
+
 
     env_cfg = env.config  # Retrieve the environment configuration
     ppo_params = {
@@ -52,10 +58,10 @@ def main():
         'episode_length': env_cfg.episode_length,
         'learning_rate': 3e-4,
         'num_envs': 4096,
-        'num_evals': 25,
+        'num_evals': 5,
         'num_minibatches': 32,
         'num_updates_per_batch': 4,
-        'num_timesteps': 250_000_000,
+        'num_timesteps': 5_000_000,
         'normalize_observations': True,
         'reward_scaling': 1.0,
         'unroll_length': 32,

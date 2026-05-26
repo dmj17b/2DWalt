@@ -224,7 +224,7 @@ class StairEnv(BaseEnv.BaseEnv):
         z_pos_reward = self.reward_config.pos_reward * data.qpos[self.z_slide_qpos_addr]  # Reward for maintaining a higher position (encourages climbing)
 
         # Total reward
-        episode_reward = vel_tracking_reward + body_pitch_vel_penalty + low_torques_reward + action_smoothing + joint_vel_penalty + x_pos_reward + done_penalty + z_pos_reward
+        episode_reward = vel_tracking_reward + body_pitch_vel_penalty + low_torques_reward + action_smoothing + joint_vel_penalty + done_penalty 
 
         metrics["reward/task"] = task_reward
         metrics["reward/body_pitch"] = body_pitch_penalty
