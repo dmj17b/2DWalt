@@ -44,10 +44,6 @@ def main():
     # wrapper_fn = wrapper.wrap_for_brax_training  # Use the standard Brax wrapper for training
     wrapper_fn = CurriculumWrapper.wrap_for_curriculum_training  # Use the custom curriculum wrapper for training
 
-    # Visualization stuff:
-    html_renderer = HTML_Renderer.HTML_Renderer()
-
-
 
     env_cfg = env.config  # Retrieve the environment configuration
     ppo_params = {
@@ -81,6 +77,10 @@ def main():
         "notes": notes,
     }
     run = wandb.init(project=project, config=wandb_config)
+    
+    # Visualization setup - initialize after WandB run
+    render_dir = f"visualizations/{run.id}"
+    html_renderer = HTML_Renderer.HTMLRenderer(env, render_dir=render_dir)
 
 
     def _to_float(value):
@@ -90,18 +90,16 @@ def main():
         except (TypeError, ValueError):
             return None
         
-   
-    # Progress callback
+    
+    # Progress callback - logs metrics at each evaluation
     def progress(num_steps, metrics):
         if not hasattr(progress, "eval_counter"):
             progress.eval_counter = 0
 
-        # FIX: Print the available keys on the first run so you know exactly what Brax named them
         if progress.eval_counter == 0:
             print("Available Metric Keys:", list(metrics.keys()))
 
         print(f"\nEvaluation #{progress.eval_counter}:")
-        # Print all metrics for debugging:
         for key, value in metrics.items():
             print(f"{key}: {value:.4f}")
 
@@ -111,13 +109,67 @@ def main():
         run.log(wandb_metrics, step=int(num_steps))
         
         progress.eval_counter += 1
-        
 
     
-    ppo_training_params = ppo_params
+    # Policy params callback - called periodically during training with current policy
+    def policy_params_fn(num_steps, make_policy, params):
+        """Callback to render visualizations during training.
+        
+        Args:
+            num_steps: Current training step
+            make_policy: Function that creates a policy from params
+            params: Current network parameters
+        """
+        if not hasattr(policy_params_fn, "vis_counter"):
+            policy_params_fn.vis_counter = 0
+        
+        # Render every 1,000,000 steps as requested
+        if num_steps % 1_000_000 == 0 or policy_params_fn.vis_counter == 0:
+            try:
+                print(f"\n[Visualization] Generating policy visualization at step {num_steps}...")
+                
+                # Create policy from current parameters
+                policy_fn = make_policy(params)
+                
+                # Initialize environment and get initial state
+                key = jax.random.PRNGKey(42)
+                state = env.reset(key)
+                
+                # Unroll policy trajectory
+                _, trajectory = html_renderer.unroll_policy_trajectory(
+                    state=state,
+                    policy=policy_fn,
+                    key=key,
+                    num_steps=html_renderer.episode_length,
+                )
+                
+                # Render to HTML file
+                html_file = html_renderer.render_trajectory_to_html(
+                    trajectory=trajectory,
+                    iteration=policy_params_fn.vis_counter,
+                    filename_prefix="policy_viz",
+                )
+                print(f"[Visualization] Saved to {html_file}")
+                
+                # Log HTML to WandB
+                html_content = html_renderer.render_and_get_html(trajectory)
+                wandb.log({
+                    "policy_visualization": wandb.Html(html_content),
+                    "visualization_step": num_steps,
+                }, step=num_steps)
+                
+                policy_params_fn.vis_counter += 1
+                
+            except Exception as e:
+                print(f"[Visualization] Warning: Failed to generate visualization at step {num_steps}: {e}")
+                import traceback
+                traceback.print_exc()
+
+    
+    ppo_training_params = ppo_params.copy()
     network_factory = ppo_networks.make_ppo_networks
-    if "network_factory" in ppo_params:
-        del ppo_training_params["network_factory"]  # Remove network factory from training params since it is not a valid argument for the PPO class
+    if "network_factory" in ppo_training_params:
+        del ppo_training_params["network_factory"]
         network_factory = functools.partial(
             ppo_networks.make_ppo_networks, 
             **ppo_params.network_factory
@@ -126,13 +178,14 @@ def main():
     train_fn = functools.partial(
         ppo.train,
         **dict(ppo_training_params),
-        network_factory = network_factory,
+        network_factory=network_factory,
         progress_fn=progress,
+        policy_params_fn=policy_params_fn,
     )
     
     train_kwargs = dict(
         environment=env,
-        wrap_env_fn=wrapper_fn,  # Use the appropriate wrapper function for training
+        wrap_env_fn=wrapper_fn,
     )
 
     # If a resume path is provided, load the parameters and pass them, otherwise start training from scratch
@@ -149,12 +202,10 @@ def main():
             **train_kwargs
         )
 
-
-
-    # Save the trained policy parameters and metrics:
+    # Save the trained policy parameters and metrics
     model.save_params(save_path, params)
 
-    run.finish()  # Finish the WandB run after training is complete
+    run.finish()
     print(f"\nFinal metrics: {metrics}")
 
 if __name__ == "__main__":

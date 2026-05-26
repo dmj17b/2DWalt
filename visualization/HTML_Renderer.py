@@ -1,127 +1,208 @@
+"""HTML Renderer for policy visualization during training.
+
+This module provides functionality to render policy trajectories as HTML
+visualizations that can be logged to WandB for remote monitoring.
+"""
+
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))  # Add parent directory to path
-import mujoco
-from brax.io import html, mjcf
-from brax.io import model
-import brax
-import numpy as np
-from mujoco import mjx
+from pathlib import Path
+from typing import Callable, Tuple, List, Optional
+
 import jax
 import jax.numpy as jp
-from brax.base import State, System, Env
-from typing import Sequence, Tuple, List
+import mujoco
+import numpy as np
+from brax.base import Env, State
+from brax.io import html, mjcf
+from brax.training.types import PolicyFn
 
-
-def policy_render_callback():
-    pass
-
-def policy_step(
-    env: Env,
-    state: State,
-    policy,
-    key,
-    extra_fields: Sequence[str] = (),
-) -> State:
-    actions, policy_data = policy(state.obs, key)
-    next_state = env.step(state, actions)
-    return next_state 
 
 class HTMLRenderer:
-    def __init__(self, env):
+    """Renders policy trajectories as interactive HTML visualizations.
+    
+    This renderer unrolls policy trajectories in a MuJoCo environment and
+    converts them to HTML files that can be viewed in a browser or logged
+    to WandB for remote monitoring.
+    """
+    
+    def __init__(
+        self,
+        env: Env,
+        render_dir: Optional[str] = None,
+        episode_length: Optional[int] = None,
+    ):
+        """Initialize the HTML renderer.
+        
+        Args:
+            env: Brax environment with MuJoCo backend.
+            render_dir: Directory to save HTML files. Defaults to './visualizations'.
+            episode_length: Length of episodes to render. Defaults to env's episode length.
+        """
         self.env = env
         self.mj_model = env._mj_model
-        # Create Brax System for HTML rendering:
+        self.dt = env.dt
+        
+        # Create Brax System for HTML rendering
         sys = mjcf.load_model(self.mj_model)
         self.sys = sys.tree_replace({'opt.timestep': env.dt})
-        self.dt = env.dt
-
-    def render(self, state, filename="render.html"):
-        # Create an HTML renderer for the current environment
-        renderer = html.Renderer(self.mj_model)
-
-        # Render the current state to an HTML file
-        renderer.render(state.data, filename)
-
-
-
+        
+        # Set up rendering directory
+        self.render_dir = render_dir or "./visualizations"
+        Path(self.render_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Set episode length
+        if hasattr(env, 'max_episode_length'):
+            self.episode_length = env.max_episode_length
+        elif hasattr(env.config, 'episode_length'):
+            self.episode_length = env.config.episode_length
+        else:
+            self.episode_length = episode_length or 1000
+    
     def unroll_policy_trajectory(
-        env: Env,
+        self,
         state: State,
-        policy,
-        key,
-        num_steps: int,
-        extra_fields: Sequence[str] = (),
-    ) -> Tuple[State, List[State]]:
-        """Unrolls a trajectory by applying the policy to the environment."""
-        @jax.jit
-        def f(carry, unused_t):
-            state, key = carry
-            key, subkey = jax.random.split(key)
-            state = policy_step(
-                env,
-                state,
-                policy,
-                key,
-                extra_fields=extra_fields,
+        policy: PolicyFn,
+        key: jax.Array,
+        num_steps: Optional[int] = None,
+    ) -> Tuple[State, Tuple[jax.Array, jax.Array, jax.Array]]:
+        """Unroll a policy trajectory for a given number of steps.
+        
+        Args:
+            state: Initial environment state.
+            policy: Policy function that takes (obs, key) and returns (actions, policy_data).
+            key: JAX random key.
+            num_steps: Number of steps to unroll. Defaults to episode_length.
+        
+        Returns:
+            Tuple of (final_state, trajectory_data) where trajectory_data contains
+            (qpos, xpos, xquat) arrays of shape (num_steps, ...).
+        """
+        if num_steps is None:
+            num_steps = self.episode_length
+        
+        def step_fn(carry, unused_t):
+            current_state, rng = carry
+            rng, subkey = jax.random.split(rng)
+            
+            # Get action from policy
+            actions, _ = policy(current_state.obs, subkey)
+            
+            # Step environment
+            next_state = self.env.step(current_state, actions)
+            
+            # Collect trajectory data
+            trajectory_data = (
+                next_state.data.qpos,
+                next_state.data.xpos,
+                next_state.data.xquat,
             )
-            return (state, subkey), (state.data.qpos, state.data.xpos, state.data.xquat)
-
+            
+            return (next_state, rng), trajectory_data
+        
         (final_state, _), trajectory = jax.lax.scan(
-            f,
+            step_fn,
             (state, key),
-            (),
+            None,
             length=num_steps,
         )
-
+        
         return final_state, trajectory
-
-    def _render_html(
+    
+    def _trajectory_to_states(
         self,
-        states: List[Tuple[jax.Array, jax.Array, jax.Array]],
-        iteration: int,
-    ) -> None:
-        """ Render using Brax HTML renderer. """
-        qpos, xpos, xquat = jax.tree.map(lambda x: x[:, 0, :], states)
+        trajectory: Tuple[jax.Array, jax.Array, jax.Array],
+    ) -> List[State]:
+        """Convert trajectory data to a list of Brax State objects.
+        
+        Args:
+            trajectory: Tuple of (qpos, xpos, xquat) arrays.
+        
+        Returns:
+            List of State objects ready for rendering.
+        """
+        qpos, xpos, xquat = trajectory
+        qpos = np.asarray(qpos)
+        xpos = np.asarray(xpos)
+        xquat = np.asarray(xquat)
+        
+        # Create base data structure
         data = mujoco.mjx.make_data(self.mj_model)
-        data_args = data.__dict__
-        data_args['contact'] = brax.mjx.pipeline._reformat_contact(
-            self.sys, data.contact,
-        )
+        
         state_list = []
-        for i in range(self.render_episode_length):
-            state_list.append(
-                brax.mjx.base.State(
-                    q=qpos[i],
-                    qd=np.zeros(self.mj_model.nv),
-                    x=brax.base.Transform(
-                        pos=xpos[i][1:],
-                        rot=xquat[i][1:],
-                    ),
-                    xd=brax.base.Motion(
-                        vel=np.zeros_like(data.cvel[1:, 3:]),
-                        ang=np.zeros_like(data.cvel[1:, :3]),
-                    ),
-                    **data_args,
-                ),
+        num_steps = qpos.shape[0]
+        
+        for i in range(num_steps):
+            # Create state from trajectory data
+            # Note: xpos and xquat may include world body (index 0), skip if needed
+            body_start = 1 if xpos.shape[-1] > len(xpos[i]) else 0
+            
+            state = State(
+                qpos=qpos[i],
+                qd=np.zeros(self.mj_model.nv),
+                xpos=xpos[i],
+                xquat=xquat[i],
+                data=data,
             )
-
+            state_list.append(state)
+        
+        return state_list
+    
+    def render_trajectory_to_html(
+        self,
+        trajectory: Tuple[jax.Array, jax.Array, jax.Array],
+        iteration: int,
+        filename_prefix: str = "trajectory",
+    ) -> str:
+        """Render a trajectory to an HTML file.
+        
+        Args:
+            trajectory: Tuple of (qpos, xpos, xquat) arrays from unroll_policy_trajectory.
+            iteration: Iteration/step number for naming.
+            filename_prefix: Prefix for the HTML filename.
+        
+        Returns:
+            Path to the generated HTML file.
+        """
+        # Convert trajectory to state list
+        state_list = self._trajectory_to_states(trajectory)
+        
+        # Render to HTML
         html_string = html.render(
             sys=self.sys,
             states=state_list,
             height="100vh",
             colab=False,
         )
-
-        html_string = html.render(
-            sys=self.sys,
-            states=state_list,
-            height="100vh",
-            colab=False,
-        )
-
-        filepath = os.path.join(self.filepath, f'{iteration}.html')
-        self.current_filepath = filepath
+        
+        # Save to file
+        filename = f"{filename_prefix}_{iteration:06d}.html"
+        filepath = os.path.join(self.render_dir, filename)
         with open(filepath, "w") as f:
-            f.writelines(html_string)
+            f.write(html_string)
+        
+        return filepath
+    
+    def render_and_get_html(
+        self,
+        trajectory: Tuple[jax.Array, jax.Array, jax.Array],
+    ) -> str:
+        """Render a trajectory and return the HTML string (for WandB logging).
+        
+        Args:
+            trajectory: Tuple of (qpos, xpos, xquat) arrays from unroll_policy_trajectory.
+        
+        Returns:
+            HTML string ready for logging to WandB.
+        """
+        state_list = self._trajectory_to_states(trajectory)
+        
+        html_string = html.render(
+            sys=self.sys,
+            states=state_list,
+            height="100vh",
+            colab=False,
+        )
+        
+        return html_string
 
