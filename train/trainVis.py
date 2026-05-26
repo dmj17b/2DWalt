@@ -143,18 +143,16 @@ def main():
                     num_steps=html_renderer.episode_length,
                 )
                 
-                # Render to HTML file
-                html_file = html_renderer.render_trajectory_to_html(
-                    trajectory=trajectory,
-                    iteration=policy_params_fn.vis_counter,
-                    filename_prefix="policy_viz",
+                # Render to mp4
+                video_file = html_renderer.render_trajectory_to_video(
+                    trajectory = trajectory,
+                    iteration = policy_params_fn.vis_counter,
+                    filename_prefix = "policy_viz"
                 )
-                print(f"[Visualization] Saved to {html_file}")
                 
-                # Log HTML to WandB
-                html_content = html_renderer.render_and_get_html(trajectory)
+                # Log Video to WandB
                 wandb.log({
-                    "policy_visualization": wandb.Html(html_content),
+                    "policy_visualization": wandb.Video(video_file, format="mp4"),
                     "visualization_step": num_steps,
                 }, step=num_steps)
                 

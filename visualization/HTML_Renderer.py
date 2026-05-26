@@ -7,7 +7,7 @@ visualizations that can be logged to WandB for remote monitoring.
 import os
 import sys
 from pathlib import Path
-from typing import Callable, Tuple, List, Optional
+from typing import Callable, Tuple, List, Optional, Union
 
 import brax
 import jax
@@ -16,7 +16,7 @@ import mujoco
 import numpy as np
 from brax.base import State
 from brax.io import html, mjcf
-
+import imageio
 
 class HTMLRenderer:
     """Renders policy trajectories as interactive HTML visualizations.
@@ -149,7 +149,46 @@ class HTMLRenderer:
             state_list.append(state)
         
         return state_list
-    
+    # Add this method inside your HTMLRenderer class
+    def render_trajectory_to_video(
+        self,
+        trajectory: Tuple[jax.Array, jax.Array, jax.Array],
+        iteration: int,
+        filename_prefix: str = "trajectory",
+        camera: Union[int, str, mujoco.MjvCamera] = -1,
+
+    ) -> str:
+        """Render a trajectory to an MP4 video file natively via MuJoCo."""
+        qpos, _, _ = trajectory
+        qpos = np.asarray(qpos)
+        
+        # Initialize native MuJoCo data and renderer
+        data = mujoco.MjData(self.mj_model)
+        renderer = mujoco.Renderer(self.mj_model, height=480, width=640)
+        
+        frames = []
+        num_steps = qpos.shape[0]
+        
+        for i in range(num_steps):
+            # Apply state and compute forward kinematics
+            data.qpos[:] = qpos[i]
+            mujoco.mj_forward(self.mj_model, data)
+            
+            # Render frame
+            renderer.update_scene(data, camera=camera)
+            frames.append(renderer.render())
+            
+        renderer.close()
+        
+        # Save to MP4
+        filename = f"{filename_prefix}_{iteration:06d}.mp4"
+        filepath = os.path.join(self.render_dir, filename)
+        
+        # fps = 1 / dt (e.g., dt=0.02 -> 50fps)
+        fps = int(1.0 / self.dt)
+        imageio.mimsave(filepath, frames, fps=fps)
+        
+        return filepath
     def render_trajectory_to_html(
         self,
         trajectory: Tuple[jax.Array, jax.Array, jax.Array],
