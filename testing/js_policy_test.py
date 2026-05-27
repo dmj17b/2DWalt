@@ -25,7 +25,7 @@ import environment.CurriculumWrapper as CurriculumWrapper
 print(jax.devices())
 
 def main():
-    model_path = "policies/stairs2"  # Path to the saved PPO model parameters
+    model_path = "policies/stairs3"  # Path to the saved PPO model parameters
 
     # Initialize joystick
     joystick.init()
@@ -38,7 +38,7 @@ def main():
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment
     # env = HFieldEnv.HFieldEnv(difficulty=0.1)  # Create an instance of the BoxEnv environment
     # env = BoxEnv.BoxEnv(difficulty = 0.9, spacing = 64) # Create an instance of the BoxEnv environment
-    env = StairEnv.StairEnv(challenge_level = 2)  # Create an instance of the StairEnv environment for stair climbing tasks
+    env = StairEnv.StairEnv(challenge_level = 3)  # Create an instance of the StairEnv environment for stair climbing tasks
     env = CurriculumWrapper.CurriculumWrapper(env)  # Wrap the environment with the curriculum wrapper to enable automatic resets and curriculum state management
 
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX

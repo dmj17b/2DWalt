@@ -39,14 +39,14 @@ class CommandConfig:
 
 class StairCommandConfig(CommandConfig):
     max_vel: float = 1.0  # Reduce max velocity for stair climbing tasks to encourage careful navigation
-    min_cmd_duration: float = 29.0  # Increase minimum command duration to encourage sustained commands for stair climbing
-    max_cmd_duration: float = 30.0  # Increase maximum command duration to allow for longer sustained commands during stair climbing
+    min_cmd_duration: float = 1.5  # Increase minimum command duration to encourage sustained commands for stair climbing
+    max_cmd_duration: float = 10.0  # Increase maximum command duration to allow for longer sustained commands during stair climbing
 
 def SimConfig() -> config_dict.ConfigDict:
     return config_dict.create(
         ctrl_dt = 0.02,
         sim_dt = 0.004,
-        episode_length = 10000,
+        episode_length = 3000,
         action_repeat = 1,
         impl = 'warp',
         naconmax = 10*4096,

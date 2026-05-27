@@ -29,10 +29,10 @@ import environment.StairEnv as StairEnv
     
 def main():
 
-    resume_path = "policies/stairs"  # Path to the saved PPO model parameters to resume training from
-    save_path = "policies/stairs2"  # Path to save the new PPO model parameters after training
+    resume_path = "policies/rolling"  # Path to the saved PPO model parameters to resume training from
+    save_path = "policies/stairs_highUnroll"  # Path to save the new PPO model parameters after training
 
-    notes = "Got rid of xpos reward and zpos reward. Increased learning rate. Changed to start at challenge level 2 since that's where previous agent failed"
+    notes = "Using rolling policy as starting point for stairs"
 
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment with a moderate difficulty level
     # env = HFieldEnv.HFieldEnv(difficulty=0.25)  # Create an instance of the HFieldEnv environment with a moderate difficulty level
@@ -51,13 +51,13 @@ def main():
         'episode_length': env_cfg.episode_length,
         'learning_rate': 3e-4,
         'num_envs': 4096,
-        'num_evals': 50,
+        'num_evals': 20,
         'num_minibatches': 32,
         'num_updates_per_batch': 4,
         'num_timesteps': 500_000_000,
         'normalize_observations': True,
         'reward_scaling': 1.0,
-        'unroll_length': 32,
+        'unroll_length': 64,
         'deterministic_eval': True,
         }
 
@@ -72,6 +72,8 @@ def main():
         "command_config": command_config,
         "env_config": env_cfg,
         "notes": notes,
+        "resume_path": resume_path,
+        "save_path": save_path,
     }
     run = wandb.init(project=project, config=wandb_config)
 
