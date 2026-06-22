@@ -6,6 +6,7 @@ import mujoco
 import mujoco.viewer
 from typing import Optional, Dict, Union
 from mujoco import mjx
+import numpy as np
 import time
 import jax
 import jax.numpy as jp
@@ -38,7 +39,7 @@ def main():
     # env = FlatEnv.FlatEnv()  # Create an instance of the FlatEnv environment
     # env = HFieldEnv.HFieldEnv(difficulty=0.1)  # Create an instance of the BoxEnv environment
     # env = BoxEnv.BoxEnv(difficulty = 0.9, spacing = 64) # Create an instance of the BoxEnv environment
-    env = StairEnv.StairEnv(challenge_level = 3)  # Create an instance of the StairEnv environment for stair climbing tasks
+    env = StairEnv.StairEnv(challenge_level = 1)  # Create an instance of the StairEnv environment for stair climbing tasks
     env = CurriculumWrapper.CurriculumWrapper(env)  # Wrap the environment with the curriculum wrapper to enable automatic resets and curriculum state management
 
     key = jax.random.PRNGKey(2)  # Initialize a random key for JAX
@@ -70,6 +71,8 @@ def main():
 
     jit_inference_fn = jax.jit(inference_fn)
 
+    # Camera stuff:
+    PAN_SPEED = 0.1
 
     # Launch standard MuJoCo viewer
     n_steps = 0
@@ -89,11 +92,22 @@ def main():
             if reset_button:
                 key, subkey = jax.random.split(key)
                 state = reset_fn(subkey)  # Reset the environment if the reset button is pressed
-            velocity_command = -joystick_state * env.max_vel_command  # Scale and invert the command
+            # velocity_command = -joystick_state * env.max_vel_command  # Scale and invert the command
+            velocity_command = 1.0
             info = dict(state.info)
             info['command'] = jp.asarray(velocity_command)
             state = state.replace(info=info)  # Update the state info with the new command
 
+            # Update camera location:
+            az_rad = np.deg2rad(viewer.cam.azimuth)  # Convert camera azimuth to radians
+            axis_x = -js.get_axis(0)  # Get the horizontal axis of the first joystick
+            axis_y = -js.get_axis(1)  # Get the vertical axis of the first joystick
+            right_x = -np.sin(az_rad)  # Calculate the right direction vector based on the camera's azimuth
+            right_y = np.cos(az_rad)
+            forward_x = np.cos(az_rad)  # Calculate the forward direction vector based on the camera's azimuth
+            forward_y = np.sin(az_rad)
+            viewer.cam.lookat[0] += (axis_x * right_x + axis_y * forward_x) * PAN_SPEED
+            viewer.cam.lookat[1] += (axis_x * right_y + axis_y * forward_y) * PAN_SPEED
             # Update the MJX state with any changes from viewer interactions (e.g., user dragging the model)
             state = state.replace(
                 data=state.data.replace(
@@ -105,6 +119,10 @@ def main():
                 )
             )
 
+
+
+
+        
 
             # Sample a random action (for testing purposes) every 5 sim steps:
             if n_steps % 5 == 0:
